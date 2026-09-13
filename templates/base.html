@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="{{ lang() }}" dir="{{ direction() }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ t('app_name') }}{% endblock %} — {{ brand.org }}</title>
+  <link rel="icon" href="{{ url_for('brand_logo') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+{# A role that may only key in its own figures sees nothing else at all;
+   every other role sees the whole menu with what it lacks dimmed. #}
+{% macro nav_link(endpoint, label, cap, active_key, args={}) %}
+  {% if can(cap) %}
+    <a href="{{ url_for(endpoint, **args) }}" class="{{ 'on' if active == active_key }}">{{ label }}</a>
+  {% elif not hide_menu %}
+    <a class="off" title="{{ why(cap) }}" aria-disabled="true">{{ label }}</a>
+  {% endif %}
+{% endmacro %}
+
+{% macro stream_link(k) %}
+  {% if can_s(k, 'view') %}
+    <a href="{{ url_for('table_list', key=k) }}">{{ stream_label(k) }}</a>
+  {% elif not hide_menu %}
+    <a class="off" title="{{ why_s(k, 'view') }}" aria-disabled="true">{{ stream_label(k) }}</a>
+  {% endif %}
+{% endmacro %}
+
+<div class="topbar">
+  <img src="{{ url_for('brand_logo') }}" alt="{{ brand.org }}" class="logo">
+  <div class="brand"><b>{{ brand.org }}</b><small>{{ t('app_name') }}</small></div>
+  <div class="spacer"></div>
+  {% if current_user.is_authenticated %}
+    {% if not hide_menu %}<span class="chip">{{ t('fx_rate') }} {{ fx | money }}</span>{% endif %}
+    <span class="chip">{{ current_user.display }} · {{ ROLE_LABEL.get(current_user.role, current_user.role) }}</span>
+  {% endif %}
+  {% for code, native, _en in LANGS %}
+    {% if code != lang() %}<a href="{{ url_for('set_lang', code=code) }}">{{ native }}</a>{% endif %}
+  {% endfor %}
+  {% if current_user.is_authenticated %}<a href="{{ url_for('logout') }}">{{ t('logout') }}</a>{% endif %}
+</div>
+
+{% if current_user.is_authenticated %}
+<nav class="main">
+  {{ nav_link('dashboard', t('dashboard'), 'dashboard', 'dashboard') }}
+  {{ nav_link('forecast', t('forecast'), 'forecast', 'forecast') }}
+
+  {% if my_streams %}
+  <div class="dd">
+    <span>{{ t('tables') }} ▾</span>
+    <div class="dd-menu">
+      {% set ins = INFLOW_STREAMS | select('in', my_streams) | list %}
+      {% set outs = OUTFLOW_STREAMS | select('in', my_streams) | reject('eq', 'one_off') | list %}
+      {% if ins %}<div class="hdr">{{ t('inflows') }}</div>{% endif %}
+      {% for k in ins %}{{ stream_link(k) }}{% endfor %}
+      {% if outs %}<div class="hdr">{{ t('outflows') }}</div>{% endif %}
+      {% for k in outs %}{{ stream_link(k) }}{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {{ nav_link('banks', t('banks'), 'banks_view', 'banks') }}
+  {{ nav_link('opening', t('opening_balances'), 'forecast', 'opening') }}
+
+  {% if not hide_menu or can('reports') %}
+  <div class="dd">
+    <span class="{{ 'on' if active == 'reports' }}">{{ t('reports') }} ▾</span>
+    <div class="dd-menu">
+      {% for r in REPORTS %}
+        {% if can(r[3]) %}
+          {% if r[0] == 'completeness' %}<div class="sep"></div>{% endif %}
+          <a href="{{ url_for('reports', report=r[0]) }}">{{ report_label(r) }}</a>
+        {% elif not hide_menu %}
+          {% if r[0] == 'completeness' %}<div class="sep"></div>{% endif %}
+          <a class="off" title="{{ why(r[3]) }}" aria-disabled="true">{{ report_label(r) }}</a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {{ nav_link('trend', t('trend'), 'trend', 'trend') }}
+
+  {% if can('approvals') %}
+    <a href="{{ url_for('approvals') }}" class="{{ 'on' if active == 'approvals' }}">
+      {{ t('approvals') }}{% if pending_approvals %} <span class="badge b-submitted">{{ pending_approvals }}</span>{% endif %}
+    </a>
+  {% elif not hide_menu %}
+    <a class="off" title="{{ why('approvals') }}" aria-disabled="true">{{ t('approvals') }}</a>
+  {% endif %}
+
+  {% if is_admin %}
+    <a href="{{ url_for('admin') }}" class="{{ 'on' if active == 'admin' }}">⚙ {{ t('admin') }}</a>
+  {% endif %}
+</nav>
+{% endif %}
+
+<main>
+  <div class="print-head">
+    <img src="{{ url_for('brand_logo') }}" alt="{{ brand.org }}">
+    <div><b>{{ brand.org }}</b> — {{ t('app_name') }} · {{ today() | d }}</div>
+  </div>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block body %}{% endblock %}
+</main>
+
+<footer>{{ brand.product }} v{{ app_version }} · {{ brand.org }}</footer>
+</body>
+</html>

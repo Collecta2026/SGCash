@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% set active = 'forecast' %}
+{% block title %}{{ t('forecast') }}{% endblock %}
+{% block body %}
+<h1>{{ t('forecast') }}</h1>
+<p class="sub">{{ f.rows|length }} {{ t('week') }} · {{ t('fx_rate') }} {{ f.fx | money }}</p>
+<div class="card">
+<div class="scroll">
+<table class="fc tight">
+  <thead><tr>
+    <th>{{ t('week') }}</th>
+    {% for c in CURRENCIES %}
+      <th class="num">{{ t('opening') }} {{ c }}</th><th class="num">{{ t('cash_in') }} {{ c }}</th>
+      <th class="num">{{ t('cash_out') }} {{ c }}</th><th class="num">{{ t('closing') }} {{ c }}</th>
+    {% endfor %}
+    <th class="num">{{ t('closing') }} ≡EGP</th><th class="num">{{ t('pending') }} ≡EGP</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for r in f.rows %}
+    <tr>
+      <td class="nowrap">{{ r.week.label }}</td>
+      {% for c in CURRENCIES %}
+        <td class="num {{ 'ovr' if r.overridden[c] }}">{{ r.opening[c] | money0 }}</td>
+        <td class="num">{{ r.inflow[c] | money0 }}</td>
+        <td class="num">{{ r.outflow[c] | money0 }}</td>
+        <td class="num {{ 'short' if r.closing[c] < 0 }}">{{ r.closing[c] | money0 }}</td>
+      {% endfor %}
+      <td class="num"><b>{{ r.closing_eqv | money0 }}</b></td>
+      <td class="num muted">{{ ((r.pending_in.EGP - r.pending_out.EGP) + (r.pending_in.USD - r.pending_out.USD) * f.fx) | money0 }}</td>
+      <td><a class="btn sm sec" href="{{ url_for('week_detail', week_id=r.week.week_id) }}">{{ t('detail') }}</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+{% endblock %}

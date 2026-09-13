@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block body %}
+<div class="card" style="max-width:520px;margin:6vh auto;text-align:center">
+  <h1>{{ code }}</h1><p class="sub">{{ msg }}</p>
+  <a class="btn sec" href="{{ url_for('dashboard') }}">{{ t('dashboard') }}</a>
+</div>
+{% endblock %}

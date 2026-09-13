@@ -1,0 +1,360 @@
+{% extends 'base.html' %}
+{% set active = 'admin' %}
+{% block title %}{{ t('admin') }}{% endblock %}
+{% block body %}
+<h1>{{ t('admin') }}</h1>
+<p class="sub">Everything configurable in one place. This page is visible to the
+  System Administrator only.</p>
+
+{% set sections = [('system', t('settings')), ('branding', 'Branding'),
+                   ('users', t('users')), ('delegation', t('delegation')),
+                   ('reference', t('reference')), ('email', t('notifications')),
+                   ('audit', t('audit_trail'))] %}
+<div class="tabs">
+  {% for key, label in sections %}
+    <a href="{{ url_for('admin', s=key) }}" class="{{ 'on' if section == key }}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+{# ================= System settings ================= #}
+{% if section == 'system' %}
+<form method="post"><input type="hidden" name="section" value="system">
+<div class="grid g2">
+  <div class="card">
+    <h2>{{ t('currency') }}</h2>
+    <div class="field"><label>{{ t('fx_rate') }} *</label>
+      <input type="number" step="0.0001" name="fx_rate" value="{{ v.fx_rate }}">
+      <div class="hint">Used for every EGP-equivalent figure in the system.</div></div>
+    {% for c in CURRENCIES %}
+    <div class="field"><label>{{ t('min_buffer') }} — {{ c }}</label>
+      <input type="number" step="0.01" name="min_buffer_{{ c }}" value="{{ v['min_buffer_' + c] }}">
+    </div>
+    {% endfor %}
+    <div class="field"><label><input type="checkbox" name="include_pending" {{ 'checked' if v.include_pending }} style="width:auto"> {{ t('include_pending') }}</label></div>
+    <div class="field"><label><input type="checkbox" name="apply_certainty" {{ 'checked' if v.apply_certainty }} style="width:auto"> {{ t('apply_certainty') }}</label></div>
+  </div>
+
+  <div class="card">
+    <h2>{{ t('forecast') }}</h2>
+    <div class="field"><label>{{ t('work_week') }}</label>
+      <select name="work_week">
+        <option value="sun_thu" {{ 'selected' if v.work_week == 'sun_thu' }}>Sunday – Thursday (Friday &amp; Saturday off)</option>
+        <option value="sat_thu" {{ 'selected' if v.work_week == 'sat_thu' }}>Saturday – Thursday (Friday off only)</option>
+        <option value="mon_fri" {{ 'selected' if v.work_week == 'mon_fri' }}>Monday – Friday</option>
+        <option value="mon_sat" {{ 'selected' if v.work_week == 'mon_sat' }}>Monday – Saturday</option>
+        <option value="all" {{ 'selected' if v.work_week == 'all' }}>Every day</option>
+      </select></div>
+    <div class="field"><label>Week starts on</label>
+      <select name="week_start">{% for wd, en, ar in WEEKDAYS %}<option value="{{ wd }}" {{ 'selected' if v.week_start|int == wd }}>{{ ar if lang()=='ar' else en }}</option>{% endfor %}</select></div>
+    <div class="field"><label>{{ t('weekend_rule') }}</label>
+      <select name="weekend_rule">
+        <option value="next" {{ 'selected' if v.weekend_rule == 'next' }}>Move to the next working day</option>
+        <option value="previous" {{ 'selected' if v.weekend_rule == 'previous' }}>Move to the previous working day</option>
+        <option value="none" {{ 'selected' if v.weekend_rule == 'none' }}>Leave the date as entered</option>
+      </select></div>
+    <div class="field"><label>{{ t('horizon_weeks') }}</label>
+      <input type="number" name="horizon_weeks" min="1" max="260" value="{{ v.horizon_weeks }}"></div>
+    <div class="field"><label>{{ t('dashboard_weeks') }}</label>
+      <input type="number" name="dashboard_weeks" min="1" max="26" value="{{ v.dashboard_weeks }}"></div>
+    <div class="field"><label>Forecast starts (week containing)</label>
+      <input type="date" name="forecast_start" value="{{ v.forecast_start }}">
+      <div class="hint">Leave blank to always start at the current week.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>{{ t('trend') }}</h2>
+    <div class="field"><label>{{ t('lookback') }}</label>
+      <input type="number" name="trend_lookback" min="2" max="52" value="{{ v.trend_lookback }}"></div>
+    <div class="field"><label>{{ t('project_ahead') }}</label>
+      <input type="number" name="trend_project" min="1" max="52" value="{{ v.trend_project }}"></div>
+    <div class="field"><label>{{ t('method') }}</label>
+      <select name="trend_method">
+        <option value="linear" {{ 'selected' if v.trend_method == 'linear' }}>{{ t('method_linear') }}</option>
+        <option value="average" {{ 'selected' if v.trend_method == 'average' }}>{{ t('method_average') }}</option>
+      </select></div>
+    <div class="field"><label>Default {{ t('language') }}</label>
+      <select name="default_lang">
+        <option value="en" {{ 'selected' if v.default_lang == 'en' }}>English</option>
+        <option value="ar" {{ 'selected' if v.default_lang == 'ar' }}>العربية</option></select></div>
+  </div>
+</div>
+<button class="btn">{{ t('save') }}</button>
+</form>
+{% endif %}
+
+{# ================= Branding ================= #}
+{% if section == 'branding' %}
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="section" value="branding">
+  <div class="card" style="max-width:620px">
+    <h2>Branding</h2>
+    <div class="field"><label>{{ t('org_name') }}</label>
+      <input type="text" name="org_name" value="{{ v.org_name }}"></div>
+    <div class="field"><label>{{ t('product_name') }}</label>
+      <input type="text" name="product_name" value="{{ v.product_name }}"></div>
+    <div class="field"><label>Logo</label>
+      <img src="{{ url_for('brand_logo') }}" alt="" style="height:56px;display:block;margin-bottom:8px">
+      <input type="file" name="logo" accept="image/*">
+      <div class="hint">PNG with a transparent background works best. 1.5 MB maximum.</div></div>
+    {% if has_logo %}
+    <div class="field"><label><input type="checkbox" name="remove_logo" value="1" style="width:auto">
+      Remove the uploaded logo and use the shipped one</label></div>
+    {% endif %}
+    <button class="btn">{{ t('save') }}</button>
+  </div>
+</form>
+{% endif %}
+
+{# ================= Users ================= #}
+{% if section == 'users' %}
+<div class="card"><div class="scroll">
+<table>
+  <thead><tr><th>{{ t('username') }}</th><th>Name</th><th>Email</th><th>Role</th>
+    <th>{{ t('language') }}</th><th>Active</th><th>{{ t('actions') }}</th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr><form method="post"><input type="hidden" name="section" value="users">
+    <input type="hidden" name="action" value="update"><input type="hidden" name="id" value="{{ u.id }}">
+    <td>{{ u.username }}</td>
+    <td><input type="text" name="full_name" value="{{ u.full_name or '' }}"></td>
+    <td><input type="text" name="email" value="{{ u.email or '' }}"></td>
+    <td><select name="role">{% for rk, en, ar in ROLES %}<option value="{{ rk }}" {{ 'selected' if u.role == rk }}>{{ ar if lang()=='ar' else en }}</option>{% endfor %}</select></td>
+    <td><select name="lang"><option value="en" {{ 'selected' if u.lang == 'en' }}>EN</option>
+        <option value="ar" {{ 'selected' if u.lang == 'ar' }}>AR</option></select></td>
+    <td class="center"><input type="checkbox" name="active" value="1" {{ 'checked' if u.active }}></td>
+    <td><button class="btn sm">{{ t('save') }}</button></td>
+  </form></tr>
+  <tr><td colspan="7" style="padding:0 9px 8px">
+    <form method="post" style="display:flex;gap:6px;align-items:center">
+      <input type="hidden" name="section" value="users">
+      <input type="hidden" name="action" value="reset"><input type="hidden" name="id" value="{{ u.id }}">
+      <span class="small muted">Reset password:</span>
+      <input type="password" name="password" placeholder="new password" style="max-width:220px">
+      <button class="btn sm sec">{{ t('save') }}</button>
+    </form>
+  </td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+
+<div class="card">
+  <h2>{{ t('add') }}</h2>
+  <form method="post"><input type="hidden" name="section" value="users">
+    <input type="hidden" name="action" value="new">
+  <div class="grid g3">
+    <div class="field"><label>{{ t('username') }} *</label><input type="text" name="username" required></div>
+    <div class="field"><label>Full name</label><input type="text" name="full_name"></div>
+    <div class="field"><label>Email</label><input type="text" name="email">
+      <div class="hint">Required to receive the weekly notices.</div></div>
+    <div class="field"><label>Role</label><select name="role">{% for rk, en, ar in ROLES %}<option value="{{ rk }}">{{ ar if lang()=='ar' else en }}</option>{% endfor %}</select></div>
+    <div class="field"><label>{{ t('language') }}</label><select name="lang"><option value="en">English</option><option value="ar">العربية</option></select></div>
+    <div class="field"><label>{{ t('password') }} *</label><input type="password" name="password" required></div>
+  </div>
+  <button class="btn">{{ t('add') }}</button></form>
+</div>
+{% endif %}
+
+{# ================= Delegation ================= #}
+{% if section == 'delegation' %}
+<p class="sub">Tick what each role may do. The administrator always holds every
+  capability, and nobody may approve an entry they created themselves whatever
+  this matrix says.</p>
+<form method="post"><input type="hidden" name="section" value="delegation">
+<div class="card">
+  <h2>{{ t('approvals') }}</h2>
+  <p class="hint">Roles that may decide items in the approvals queue:</p>
+  <div class="row-actions">
+    {% for rk, en, ar in ROLES %}
+      <label style="display:inline-flex;gap:5px;align-items:center;margin-inline-end:14px">
+        <input type="checkbox" name="approver_roles" value="{{ rk }}" {{ 'checked' if rk in approver_roles }} style="width:auto">
+        {{ ar if lang()=='ar' else en }}</label>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Core capabilities</h2>
+  <div class="scroll">
+  <table class="matrix">
+    <thead><tr><th class="rowh">Capability</th>
+      {% for rk, en, ar in ROLES %}<th>{{ ar if lang()=='ar' else en }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for ck, cen, car in caps %}
+      <tr><td class="rowh">{{ car if lang()=='ar' else cen }}</td>
+      {% for rk, en, ar in ROLES %}
+        <td><input type="checkbox" name="p_{{ rk }}_{{ ck }}" {{ 'checked' if matrix[rk][ck] }} {{ 'disabled' if rk == 'admin' }}></td>
+      {% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% for sk in STREAM_ORDER %}
+<div class="card">
+  <h3>{{ stream_label(sk) }}</h3>
+  <div class="scroll">
+  <table class="matrix">
+    <thead><tr><th class="rowh">{{ t('actions') }}</th>
+      {% for rk, en, ar in ROLES %}<th>{{ ar if lang()=='ar' else en }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for ak, aen, aar in ACTIONS %}
+      <tr><td class="rowh">{{ aar if lang()=='ar' else aen }}</td>
+      {% for rk, en, ar in ROLES %}{% set cap = stream_cap(sk, ak) %}
+        <td><input type="checkbox" name="p_{{ rk }}_{{ cap }}" {{ 'checked' if matrix[rk][cap] }} {{ 'disabled' if rk == 'admin' }}></td>
+      {% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endfor %}
+<button class="btn">{{ t('save') }}</button>
+</form>
+<form method="post" style="margin-top:10px"
+      onsubmit="return confirm('Reset the whole matrix to the shipped default?')">
+  <input type="hidden" name="section" value="delegation_reset">
+  <button class="btn sec">Reset to the default scheme</button>
+</form>
+{% endif %}
+
+{# ================= Reference data ================= #}
+{% if section == 'reference' %}
+<div class="grid g2">
+  {% for kind, title, rows in [('revenue', t('revenue_by_type'), revenue_types),
+                               ('cost', t('cost_by_category'), cost_categories)] %}
+  <div class="card">
+    <h2>{{ title }}</h2>
+    <table class="tight">
+      <thead><tr><th>Code</th><th>English</th><th>العربية</th><th></th></tr></thead>
+      <tbody>
+      {% for x in rows %}
+      <tr class="{{ '' if x.active else 'past' }}"><form method="post">
+        <input type="hidden" name="section" value="reference">
+        <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="id" value="{{ x.id }}">
+        <td>{{ x.code }}<input type="hidden" name="code" value="{{ x.code }}">
+          {% if kind == 'cost' %}<input type="hidden" name="group_key" value="{{ x.group_key }}">{% endif %}</td>
+        <td><input type="text" name="name_en" value="{{ x.name_en }}"></td>
+        <td><input type="text" name="name_ar" value="{{ x.name_ar or '' }}"></td>
+        <td class="nowrap"><button class="btn sm">{{ t('save') }}</button>
+          {% if x.active %}<button class="btn sm sec" name="remove" value="1">✕</button>{% endif %}</td>
+      </form></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <form method="post" style="margin-top:10px">
+      <input type="hidden" name="section" value="reference">
+      <input type="hidden" name="kind" value="{{ kind }}">
+      <div class="grid g3">
+        <div class="field"><label>Code *</label><input type="text" name="code" required></div>
+        <div class="field"><label>English *</label><input type="text" name="name_en" required></div>
+        <div class="field"><label>العربية</label><input type="text" name="name_ar"></div>
+      </div><button class="btn">{{ t('add') }}</button></form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ================= Notifications ================= #}
+{% if section == 'email' %}
+{% if not email_ready %}<div class="flash warning">{{ t('email_not_set') }}</div>{% endif %}
+<form method="post"><input type="hidden" name="section" value="email">
+<div class="grid g2">
+  <div class="card">
+    <h2>{{ t('email_settings') }}</h2>
+    <div class="field"><label>Server (SMTP host)</label><input type="text" name="smtp_host" value="{{ v.smtp_host }}"></div>
+    <div class="field"><label>Port</label><input type="number" name="smtp_port" value="{{ v.smtp_port }}"></div>
+    <div class="field"><label>Username</label><input type="text" name="smtp_user" value="{{ v.smtp_user }}"></div>
+    <div class="field"><label>Password</label><input type="password" name="smtp_pass" placeholder="unchanged"></div>
+    <div class="field"><label>Send from</label><input type="text" name="smtp_from" value="{{ v.smtp_from }}"></div>
+    <div class="field"><label>Sender name</label><input type="text" name="smtp_from_name" value="{{ v.smtp_from_name }}"></div>
+    <div class="field"><label><input type="checkbox" name="smtp_tls" {{ 'checked' if v.smtp_tls }} style="width:auto"> Use STARTTLS</label></div>
+  </div>
+
+  <div class="card">
+    <h2>{{ t('notifications') }}</h2>
+    <div class="field"><label>Send the input request this many days before a week opens</label>
+      <input type="number" name="notify_days_before" min="1" max="14" value="{{ v.notify_days_before }}"></div>
+    <div class="field"><label>Roles asked for their input</label>
+      <div class="row-actions">
+        {% for rk, en, ar in ROLES %}
+          <label style="display:inline-flex;gap:5px;align-items:center;margin-inline-end:12px">
+            <input type="checkbox" name="request_roles" value="{{ rk }}" {{ 'checked' if rk in request_roles }} style="width:auto">
+            {{ ar if lang()=='ar' else en }}</label>
+        {% endfor %}
+      </div></div>
+    <div class="field"><label>Roles receiving the weekly cash review</label>
+      <div class="row-actions">
+        {% for rk, en, ar in ROLES %}
+          <label style="display:inline-flex;gap:5px;align-items:center;margin-inline-end:12px">
+            <input type="checkbox" name="review_roles" value="{{ rk }}" {{ 'checked' if rk in review_roles }} style="width:auto">
+            {{ ar if lang()=='ar' else en }}</label>
+        {% endfor %}
+      </div>
+      <div class="hint">Sent automatically when the week is confirmed.</div></div>
+    <div class="field"><label>Scheduler token</label>
+      <input type="text" name="notices_token" value="{{ v.notices_token }}">
+      <div class="hint">A scheduler calls <code>/tasks/notices?token=…</code> to send the
+        request emails. Leave blank to disable that endpoint.</div></div>
+  </div>
+</div>
+<button class="btn">{{ t('save') }}</button>
+</form>
+
+<div class="grid g2" style="margin-top:14px">
+  <div class="card">
+    <h3>{{ t('send_test') }}</h3>
+    <form method="post" class="toolbar"><input type="hidden" name="section" value="send_test">
+      <div class="field grow"><input type="text" name="to" placeholder="you@example.com"
+        value="{{ current_user.email or '' }}"></div>
+      <button class="btn sec">{{ t('send_test') }}</button></form>
+  </div>
+  <div class="card">
+    <h3>{{ t('send_requests_now') }}</h3>
+    <form method="post"><input type="hidden" name="section" value="send_requests">
+      <button class="btn sec">{{ t('send_requests_now') }}</button></form>
+    <p class="hint">Emails everyone whose tables have gaps in the coming week.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>{{ t('notifications') }}</h2>
+  <div class="scroll">
+  <table class="tight">
+    <thead><tr><th>{{ t('date') }}</th><th>Kind</th><th>{{ t('week') }}</th>
+      <th>Recipient</th><th>{{ t('status') }}</th><th>{{ t('detail') }}</th></tr></thead>
+    <tbody>
+    {% for n in notices %}
+      <tr><td class="nowrap small">{{ n.at | dt }}</td><td class="small">{{ n.kind }}</td>
+        <td class="small">{{ n.week_id or '' }}</td><td class="small">{{ n.recipient }}</td>
+        <td>{% if n.ok %}<span class="badge b-approved">sent</span>{% else %}<span class="badge b-rejected">failed</span>{% endif %}</td>
+        <td class="small muted">{{ n.error or n.subject }}</td></tr>
+    {% else %}<tr><td colspan="6" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+{# ================= Audit ================= #}
+{% if section == 'audit' %}
+<p class="sub">The most recent 200 entries. The full, filterable trail is in
+  <a href="{{ url_for('reports', report='audit') }}">{{ t('reports') }} → {{ t('audit_trail') }}</a>.</p>
+<div class="card"><div class="scroll">
+<table class="tight">
+  <thead><tr><th>#</th><th>{{ t('date') }}</th><th>{{ t('user') }}</th><th>{{ t('action') }}</th>
+    <th>{{ t('tables') }}</th><th>{{ t('detail') }}</th></tr></thead>
+  <tbody>
+  {% for r in audit_rows %}
+    <tr><td>{{ r.id }}</td><td class="nowrap small">{{ r.at | dt }}</td>
+      <td class="small">{{ r.actor }}</td><td class="small">{{ r.action }}</td>
+      <td class="small">{{ stream_label(r.stream) if r.stream else '' }}</td>
+      <td class="small muted">{{ r.detail }}</td></tr>
+  {% else %}<tr><td colspan="6" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endif %}
+
+{% endblock %}

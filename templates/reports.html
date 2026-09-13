@@ -1,0 +1,412 @@
+{% extends 'base.html' %}
+{% set active = 'reports' %}
+{% block title %}{{ t('reports') }}{% endblock %}
+{% block body %}
+
+<div class="tabs noprint">
+  {% for r in REPORTS %}
+    {% if can(r[3]) %}
+      <a href="{{ url_for('reports', report=r[0]) }}" class="{{ 'on' if report == r[0] }}">{{ report_label(r) }}</a>
+    {% else %}
+      <a class="off" title="{{ why(r[3]) }}">{{ report_label(r) }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+
+{% for r in REPORTS %}{% if r[0] == report %}
+  <h1>{{ report_label(r) }}</h1>
+{% endif %}{% endfor %}
+
+{% if report != 'imports' %}
+<div class="toolbar noprint">
+  {% if report in ('cashflow', 'in_out', 'shortfall', 'completeness') %}
+  <form class="toolbar" method="get" style="margin:0">
+    <input type="hidden" name="report" value="{{ report }}">
+    <div class="field"><label>{{ t('lookback') }}</label>
+      <input type="number" name="back" min="0" max="12" value="{{ back }}" style="width:90px"></div>
+    <div class="field"><label>{{ t('project_ahead') }}</label>
+      <input type="number" name="weeks" min="2" max="52" value="{{ weeks_n }}" style="width:90px"></div>
+    <button class="btn sec">{{ t('filter') }}</button>
+  </form>
+  {% elif report in ('revenue', 'costs', 'collections', 'payables') %}
+  <form class="toolbar" method="get" style="margin:0">
+    <input type="hidden" name="report" value="{{ report }}">
+    <div class="field"><label>{{ t('project_ahead') }}</label>
+      <input type="number" name="weeks" min="2" max="52" value="{{ weeks_n }}" style="width:90px"></div>
+    <button class="btn sec">{{ t('filter') }}</button>
+  </form>
+  {% endif %}
+  <button class="btn" onclick="window.print()">🖨 {{ t('print') }}</button>
+</div>
+{% endif %}
+
+{# ================= Cash flow position ================= #}
+{% if report == 'cashflow' %}
+  {% set cur = strip.current %}
+  <div class="hero">
+    <div>
+      <div class="lbl">{{ t('cash_position_now') }}</div>
+      <div class="big {{ cur.closing_eqv | neg }}">{{ cur.closing_eqv | money0 }} <span style="font-size:20px">EGP</span></div>
+      <div class="split-ccy">EGP <b class="{{ cur.closing.EGP | neg }}">{{ cur.closing.EGP | money0 }}</b>
+        · USD <b class="{{ cur.closing.USD | neg }}">{{ cur.closing.USD | money0 }}</b></div>
+    </div>
+    <div class="grow"></div>
+    <div class="side">
+      <div class="lbl">{{ t('lowest_balance') }}</div>
+      <div class="v {{ strip.worst.closing_eqv | neg }}">{{ strip.worst.closing_eqv | money0 }}</div>
+      <div class="lbl" style="text-transform:none">{{ strip.worst.week.start | d }}</div>
+    </div>
+  </div>
+
+  <div class="card chart-card">{{ chart_balance | safe }}</div>
+  <div class="card chart-card">{{ chart_in_out | safe }}</div>
+
+  <div class="card">
+    <h2>{{ t('cash_position') }}</h2>
+    <div class="scroll">
+    <table class="fc tight">
+      <thead>
+        <tr><th rowspan="2">{{ t('week') }}</th>
+          <th colspan="3" class="grp">{{ t('egp_section') }}</th>
+          <th colspan="3" class="grp usd sep">{{ t('usd_section') }}</th>
+          <th colspan="2" class="grp eqv sep">{{ t('egp_equivalent') }}</th></tr>
+        <tr><th class="num">{{ t('cash_in') }}</th><th class="num">{{ t('cash_out') }}</th><th class="num">{{ t('closing') }}</th>
+            <th class="num sep">{{ t('cash_in') }}</th><th class="num">{{ t('cash_out') }}</th><th class="num">{{ t('closing') }}</th>
+            <th class="num sep">{{ t('net_movement') }}</th><th class="num">{{ t('closing') }}</th></tr>
+      </thead>
+      <tbody>
+      {% for r in strip.rows %}
+        <tr class="{{ 'now' if r.is_current }}{{ 'past' if r.is_past }}">
+          <td class="nowrap">{{ r.week.label }}{% if r.is_current %} <span class="badge b-submitted">{{ t('cash_position_now') }}</span>{% endif %}</td>
+          <td class="num pos">{{ r.inflow.EGP | money0 }}</td>
+          <td class="num">{{ r.outflow.EGP | money0 }}</td>
+          <td class="num b {{ r.closing.EGP | neg }}">{{ r.closing.EGP | money0 }}</td>
+          <td class="num sep pos">{{ r.inflow.USD | money0 }}</td>
+          <td class="num">{{ r.outflow.USD | money0 }}</td>
+          <td class="num b {{ r.closing.USD | neg }}">{{ r.closing.USD | money0 }}</td>
+          <td class="num sep {{ (r.inflow_eqv - r.outflow_eqv) | neg }}">{{ (r.inflow_eqv - r.outflow_eqv) | money0 }}</td>
+          <td class="num b {{ r.closing_eqv | neg }}">{{ r.closing_eqv | money0 }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+{% endif %}
+
+{# ================= Money in and out ================= #}
+{% if report == 'in_out' %}
+  <div class="card chart-card">{{ chart_in_out | safe }}</div>
+  <div class="card chart-card">{{ chart_balance | safe }}</div>
+  <div class="card">
+    <div class="scroll">
+    <table class="tight">
+      <thead><tr><th>{{ t('week') }}</th>
+        <th class="num">{{ t('cash_in') }} EGP</th><th class="num">{{ t('cash_out') }} EGP</th>
+        <th class="num sep">{{ t('cash_in') }} USD</th><th class="num">{{ t('cash_out') }} USD</th>
+        <th class="num sep">{{ t('net_movement') }} ≡EGP</th></tr></thead>
+      <tbody>
+      {% for r in strip.rows %}
+        <tr class="{{ 'now' if r.is_current }}{{ 'past' if r.is_past }}">
+          <td class="nowrap">{{ r.week.label }}</td>
+          <td class="num pos">{{ r.inflow.EGP | money0 }}</td><td class="num">{{ r.outflow.EGP | money0 }}</td>
+          <td class="num sep pos">{{ r.inflow.USD | money0 }}</td><td class="num">{{ r.outflow.USD | money0 }}</td>
+          <td class="num sep b {{ (r.inflow_eqv - r.outflow_eqv) | neg }}">{{ (r.inflow_eqv - r.outflow_eqv) | money0 }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+{% endif %}
+
+{# ================= Revenue / costs ================= #}
+{% if report in ('revenue', 'costs') %}
+  <div class="grid g3">
+    <div class="kpi in"><div class="lbl">{{ t('revenue_by_type') }}</div>
+      <div class="val">{{ a.revenue_total | money0 }}</div></div>
+    <div class="kpi out"><div class="lbl">{{ t('cost_by_category') }}</div>
+      <div class="val">{{ a.cost_total | money0 }}</div></div>
+    <div class="kpi"><div class="lbl">{{ t('cost_ratio') }}</div>
+      <div class="val">{{ a.cost_ratio | pct }}</div>
+      <div class="note">{{ t('net_movement') }} <span class="{{ a.net | neg }}">{{ a.net | money0 }}</span></div></div>
+  </div>
+
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card chart-card">{{ chart_share | safe }}</div>
+    <div class="card chart-card">{{ chart_rank | safe }}</div>
+  </div>
+
+  <div class="card">
+    <div class="scroll">
+    <table class="tight">
+      <thead><tr>
+        <th>{{ t('revenue_by_type') if report == 'revenue' else t('cost_by_category') }}</th>
+        <th class="num">EGP</th><th class="num">USD</th><th class="num">≡EGP</th>
+        <th class="num">{{ t('pct_of_revenue') }}</th>
+        {% if report == 'costs' %}<th class="num">{{ t('pct_of_cost') }}</th>{% endif %}
+      </tr></thead>
+      <tbody>
+      {% for r in group %}
+        <tr><td>{{ r.name }}</td>
+          <td class="num">{{ r.by.EGP | money0 }}</td><td class="num">{{ r.by.USD | money0 }}</td>
+          <td class="num b">{{ r.eqv | money0 }}</td>
+          <td class="num">{{ r.pct_of_revenue | pct }}</td>
+          {% if report == 'costs' %}<td class="num">{{ r.pct_of_cost | pct }}</td>{% endif %}
+        </tr>
+      {% else %}<tr><td colspan="6" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr class="total"><td>{{ t('total') }}</td><td colspan="2"></td>
+        <td class="num">{{ group_total | money0 }}</td>
+        <td class="num">{{ a.cost_ratio | pct if report == 'costs' else '100.0%' }}</td>
+        {% if report == 'costs' %}<td class="num">100.0%</td>{% endif %}</tr></tfoot>
+    </table>
+    </div>
+  </div>
+{% endif %}
+
+{# ================= Collections schedule ================= #}
+{% if report == 'collections' %}
+  <div class="grid g2">
+    <div class="card chart-card">{{ chart_share | safe }}</div>
+    <div class="card chart-card">{{ chart_weekly | safe }}</div>
+  </div>
+  <div class="card">
+    <h2>{{ t('collection_type') }}</h2>
+    <table class="tight">
+      <thead><tr><th>{{ t('collection_type') }}</th><th class="num">EGP</th><th class="num">USD</th></tr></thead>
+      <tbody>
+      {% for gk, gen, gar in groups %}{% set gt = plan.group_totals.get(gk) %}
+        <tr><td>{{ gar if lang() == 'ar' else gen }}</td>
+          <td class="num">{{ (gt.EGP if gt else 0) | money0 }}</td>
+          <td class="num">{{ (gt.USD if gt else 0) | money0 }}</td></tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr class="total"><td>{{ t('total') }}</td>
+        <td class="num">{{ plan.grand.EGP | money0 }}</td>
+        <td class="num">{{ plan.grand.USD | money0 }}</td></tr></tfoot>
+    </table>
+  </div>
+  <div class="card">
+    <h2>{{ t('week') }}</h2>
+    <div class="scroll">
+    <table class="tight">
+      <thead><tr><th>{{ t('week') }}</th><th class="num">{{ t('entries') }}</th>
+        <th class="num">EGP</th><th class="num">USD</th><th class="num">≡EGP</th></tr></thead>
+      <tbody>
+      {% for c in plan.cells %}{% if c.rows %}
+        <tr><td class="nowrap">{{ c.week.label }}</td><td class="num">{{ c.rows|length }}</td>
+          <td class="num">{{ c.totals.EGP | money0 }}</td><td class="num">{{ c.totals.USD | money0 }}</td>
+          <td class="num b">{{ c.eqv | money0 }}</td></tr>
+      {% endif %}{% endfor %}
+      </tbody>
+      <tfoot><tr class="total"><td>{{ t('total') }}</td><td></td>
+        <td class="num">{{ plan.grand.EGP | money0 }}</td><td class="num">{{ plan.grand.USD | money0 }}</td>
+        <td class="num">{{ plan.grand_eqv | money0 }}</td></tr></tfoot>
+    </table>
+    </div>
+  </div>
+{% endif %}
+
+{# ================= Payables ================= #}
+{% if report == 'payables' %}
+  <div class="grid g2">
+    <div class="card chart-card">{{ chart_share | safe }}</div>
+    <div class="card chart-card">{{ chart_rank | safe }}</div>
+  </div>
+  <div class="card">
+    <h2>{{ t('outflows') }}</h2>
+    <div class="scroll">
+    <table class="tight">
+      <thead><tr><th>{{ t('date') }}</th><th>{{ t('tables') }}</th><th>{{ t('detail') }}</th>
+        <th>{{ t('cost_by_category') }}</th><th>{{ t('status') }}</th>
+        <th class="num">{{ t('amount') }}</th><th>{{ t('currency') }}</th></tr></thead>
+      <tbody>
+      {% for m in payables %}
+        <tr><td class="nowrap">{{ m.date | d }}</td>
+          <td class="small">{{ stream_label(m.stream) }}</td>
+          <td>{{ m.description }}</td>
+          <td class="small muted">{{ m.category }}</td>
+          <td><span class="badge b-{{ m.status }}">{{ t('status_' + m.status) }}</span></td>
+          <td class="num">{{ m.amount | money }}</td><td>{{ m.currency }}</td></tr>
+      {% else %}<tr><td colspan="7" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+{% endif %}
+
+{# ================= Shortfall ================= #}
+{% if report == 'shortfall' %}
+  <div class="card chart-card">{{ chart_balance | safe }}</div>
+  {% if gaps %}
+    <div class="card chart-card">{{ chart_gap | safe }}</div>
+    <div class="card">
+      <h2>{{ t('shortfall') }}</h2>
+      <div class="scroll">
+      <table class="tight">
+        <thead><tr><th>{{ t('week') }}</th><th class="num">{{ t('closing') }} EGP</th>
+          <th class="num">{{ t('closing') }} USD</th><th class="num">{{ t('closing') }} ≡EGP</th>
+          <th class="num">{{ t('gap') }} ≡EGP</th></tr></thead>
+        <tbody>
+        {% for r in gaps %}
+          <tr><td class="nowrap">{{ r.week.label }}</td>
+            <td class="num {{ r.closing.EGP | neg }}">{{ r.closing.EGP | money0 }}</td>
+            <td class="num {{ r.closing.USD | neg }}">{{ r.closing.USD | money0 }}</td>
+            <td class="num {{ r.closing_eqv | neg }}">{{ r.closing_eqv | money0 }}</td>
+            <td class="num neg">{{ r.gap_eqv | money0 }}</td></tr>
+        {% endfor %}
+        </tbody>
+        <tfoot><tr class="total"><td>{{ t('total') }}</td><td colspan="3"></td>
+          <td class="num neg">{{ strip.total_gap_eqv | money0 }}</td></tr></tfoot>
+      </table>
+      </div>
+      <p class="hint">{{ t('gap_help') }}</p>
+    </div>
+  {% else %}
+    <div class="flash success">{{ t('no_shortage_horizon') }}</div>
+  {% endif %}
+{% endif %}
+
+{# ================= Data completeness ================= #}
+{% if report == 'completeness' %}
+  <div class="grid g4">
+    <div class="kpi {{ 'bad' if comp.empty_weeks else 'ok' }}">
+      <div class="lbl">{{ t('empty_weeks') }}</div>
+      <div class="val">{{ comp.empty_weeks | length }}</div></div>
+    <div class="kpi {{ 'warn' if comp.gap_count else 'ok' }}">
+      <div class="lbl">{{ t('completeness') }}</div>
+      <div class="val">{{ comp.gap_count }}</div>
+      <div class="note">{{ t('gaps_found') }}</div></div>
+    <div class="kpi {{ 'warn' if comp.streams_never_used else 'ok' }}">
+      <div class="lbl">{{ t('tables_never_used') }}</div>
+      <div class="val">{{ comp.streams_never_used | length }}</div></div>
+  </div>
+
+  {% if comp.alerts %}
+  <div class="card">
+    <h2>{{ t('alerts') }}</h2>
+    {% for a in comp.alerts %}
+      <div class="flash {{ 'danger' if a.level == 'danger' else ('warning' if a.level == 'warning' else 'info') }}"
+           style="margin-bottom:6px">
+        <b>{{ stream_label(a.stream) if a.stream else t('week') }}</b> — {{ t(a.key) }}
+        {% if a.weeks %}:
+          {% for i in a.weeks %}{{ comp.weeks[i].short }}{% if not loop.last %}, {% endif %}{% endfor %}
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="flash success">{{ t('no_rows') }}</div>
+  {% endif %}
+
+  <div class="card">
+    <h2>{{ t('completeness') }}</h2>
+    <div class="scroll">
+    <table class="tight cells">
+      <thead><tr><th>{{ t('tables') }}</th>
+        {% for w in comp.weeks %}<th class="num">{{ w.short }}</th>{% endfor %}
+        <th class="num">{{ t('coverage') }}</th></tr></thead>
+      <tbody>
+      {% for r in comp.rows %}
+        <tr><td class="nowrap">{{ stream_label(r.key) }}</td>
+          {% for c in r.counts %}
+            <td class="cell {{ 'none' if r.never_used else ('gap' if c == 0 else 'has') }}">
+              {{ c if c else '—' }}</td>
+          {% endfor %}
+          <td class="num">{{ r.coverage | pct }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="hint">{{ t('gap_missing_weeks') }}.</p>
+  </div>
+{% endif %}
+
+{# ================= Audit trail ================= #}
+{% if report == 'audit' %}
+  <form class="toolbar noprint" method="get">
+    <input type="hidden" name="report" value="audit">
+    <div class="field"><label>{{ t('user') }}</label>
+      <select name="user"><option value="">{{ t('all') }}</option>
+        {% for a in actors %}<option value="{{ a }}" {{ 'selected' if af.user == a }}>{{ a }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label>{{ t('tables') }}</label>
+      <select name="stream"><option value="">{{ t('all') }}</option>
+        {% for k in STREAM_ORDER %}<option value="{{ k }}" {{ 'selected' if af.stream == k }}>{{ stream_label(k) }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label>{{ t('action') }}</label>
+      <input type="text" name="action" value="{{ af.action }}" placeholder="created"></div>
+    <div class="field"><label>{{ t('from') }}</label><input type="date" name="from" value="{{ af['from'] }}"></div>
+    <div class="field"><label>{{ t('to') }}</label><input type="date" name="to" value="{{ af.to }}"></div>
+    <button class="btn sec">{{ t('filter') }}</button>
+  </form>
+
+  <div class="split">
+    <div class="card">
+      <h2>{{ t('activity_by_user') }}</h2>
+      <table class="tight">
+        <thead><tr><th>{{ t('user') }}</th><th class="num">{{ t('created') }}</th>
+          <th class="num">{{ t('updated') }}</th><th class="num">{{ t('deleted') }}</th>
+          <th class="num">{{ t('approve') }}</th><th class="num">{{ t('total') }}</th>
+          <th>{{ t('last_seen') }}</th></tr></thead>
+        <tbody>
+        {% for p in audit.people %}
+          <tr><td>{{ p.actor }}<div class="small muted">{{ ROLE_LABEL.get(p.role, p.role) }}</div></td>
+            <td class="num">{{ p.created }}</td><td class="num">{{ p.updated }}</td>
+            <td class="num {{ 'neg' if p.deleted }}">{{ p.deleted }}</td>
+            <td class="num">{{ p.approved }}</td><td class="num b">{{ p.total }}</td>
+            <td class="small nowrap">{{ p.last | dt }}</td></tr>
+        {% else %}<tr><td colspan="7" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card chart-card">{{ chart_people | safe }}</div>
+  </div>
+
+  <div class="card">
+    <h2>{{ t('audit_trail') }} — {{ audit.count }}</h2>
+    <div class="scroll">
+    <table class="tight">
+      <thead><tr><th>#</th><th>{{ t('date') }}</th><th>{{ t('user') }}</th>
+        <th>{{ t('action') }}</th><th>{{ t('tables') }}</th><th>{{ t('detail') }}</th></tr></thead>
+      <tbody>
+      {% for r in audit.rows %}
+        <tr><td>{{ r.id }}</td><td class="nowrap small">{{ r.at | dt }}</td>
+          <td class="small">{{ r.actor }}{% if r.actor_role %}<div class="muted">{{ ROLE_LABEL.get(r.actor_role, r.actor_role) }}</div>{% endif %}</td>
+          <td class="small">{{ r.action }}</td>
+          <td class="small">{{ stream_label(r.stream) if r.stream else '' }}</td>
+          <td class="small muted">{{ r.detail }}</td></tr>
+      {% else %}<tr><td colspan="6" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+{% endif %}
+
+{# ================= Uploads ================= #}
+{% if report == 'imports' %}
+  <p class="sub">{{ t('import_help') }} {{ t('import_drafts') }}</p>
+  <div class="grid g2">
+  {% for k in all_streams %}
+    <div class="card">
+      <h3>{{ stream_label(k) }}</h3>
+      {% if can_s(k, 'enter') %}
+        <form method="post" action="{{ url_for('import_preview', key=k) }}"
+              enctype="multipart/form-data">
+          <div class="field"><input type="file" name="file" accept=".xlsx,.xlsm,.csv" required></div>
+          <div class="row-actions">
+            <button class="btn">{{ t('upload_file') }}</button>
+            <a class="btn sec" href="{{ url_for('import_template', key=k) }}">{{ t('download_template') }}</a>
+          </div>
+        </form>
+      {% else %}
+        <p class="muted small">{{ why_s(k, 'enter') }}</p>
+        <a class="btn sec off">{{ t('upload_file') }}</a>
+      {% endif %}
+    </div>
+  {% endfor %}
+  </div>
+{% endif %}
+
+{% endblock %}

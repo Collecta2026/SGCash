@@ -1,0 +1,27 @@
+# Render blueprint for the Scientific Gate Cash Flow Budgeting System.
+#
+# Render can create the whole service from this file (New > Blueprint), or
+# you can create the web service by hand and copy the build and start
+# commands below. DATABASE_URL is deliberately NOT stored here — paste the
+# Neon connection string into the Render dashboard so the credentials never
+# sit in the repository.
+services:
+  - type: web
+    name: sgcash
+    runtime: python
+    plan: starter                 # always-on; the free plan sleeps after 15 minutes
+    region: frankfurt             # closest Render region to Cairo and the UK
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -c gunicorn.conf.py app:app
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.6
+      - key: SECRET_KEY
+        generateValue: true       # Render generates and stores a strong key
+      - key: DATABASE_URL
+        sync: false               # set in the dashboard — the Neon string
+      - key: WEB_CONCURRENCY
+        value: "2"

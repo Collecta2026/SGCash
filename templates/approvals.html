@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% set active = 'approvals' %}
+{% block title %}{{ t('approvals') }}{% endblock %}
+{% block body %}
+<h1>{{ t('approvals') }}</h1>
+<p class="sub">{{ t('pending_count', n=pending|length) }}</p>
+
+<div class="card">
+<div class="scroll">
+<table>
+  <thead><tr><th>#</th><th>{{ t('tables') }}</th><th>{{ t('detail') }}</th><th class="num">{{ t('amount') }}</th>
+  <th>{{ t('entered_by') }}</th><th>{{ t('date') }}</th><th>{{ t('actions') }}</th></tr></thead>
+  <tbody>
+  {% for a in pending %}
+  <tr>
+    <td>{{ a.id }}</td>
+    <td class="small">{{ stream_label(a.stream) }}</td>
+    <td>{{ a.summary }}</td>
+    <td class="num">{{ a.amount | money }} {{ a.currency }}</td>
+    <td class="small">{{ a.requester }}</td>
+    <td class="small nowrap">{{ a.created_at.strftime('%d %b %Y %H:%M') if a.created_at }}</td>
+    <td><div class="row-actions">
+      {% if can_s(a.stream, 'approve') and can_approve_any %}
+      <form method="post" action="{{ url_for('table_decide', key=a.stream, rid=a.row_id, decision='approve') }}" style="display:inline">
+        <button class="btn sm">{{ t('approve') }}</button></form>
+      <form method="post" action="{{ url_for('table_decide', key=a.stream, rid=a.row_id, decision='reject') }}" style="display:inline">
+        <button class="btn sm sec">{{ t('reject') }}</button></form>
+      {% else %}<span class="muted small">—</span>{% endif %}
+      <a class="btn sm sec" href="{{ url_for('table_edit', key=a.stream, rid=a.row_id) }}">{{ t('detail') }}</a>
+    </div></td>
+  </tr>
+  {% else %}<tr><td colspan="7" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+
+<h2>{{ t('audit') }}</h2>
+<div class="card"><div class="scroll">
+<table class="tight">
+  <thead><tr><th>#</th><th>{{ t('tables') }}</th><th>{{ t('detail') }}</th><th>{{ t('status') }}</th><th>{{ t('approved_by') }}</th><th>{{ t('date') }}</th></tr></thead>
+  <tbody>
+  {% for a in history %}
+  <tr><td>{{ a.id }}</td><td class="small">{{ stream_label(a.stream) }}</td><td class="small">{{ a.summary }}</td>
+  <td><span class="badge b-{{ 'approved' if a.status == 'approved' else 'rejected' }}">{{ a.status }}</span></td>
+  <td class="small">{{ a.approver or '' }}</td>
+  <td class="small nowrap">{{ a.decided_at.strftime('%d %b %Y %H:%M') if a.decided_at }}</td></tr>
+  {% else %}<tr><td colspan="6" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

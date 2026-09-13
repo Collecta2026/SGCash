@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% set active = 'forecast' %}
+{% block title %}{{ row.week.label }}{% endblock %}
+{% block body %}
+<h1>{{ row.week.label }}</h1>
+<p class="sub">{{ t('week_detail') }} · {{ row.week.start | d }} – {{ row.week.end | d }}</p>
+
+<div class="grid g4">
+{% for c in CURRENCIES %}
+  <div class="kpi {{ 'bad' if row.closing[c] < 0 }}">
+    <div class="lbl">{{ c }}</div>
+    <div class="val">{{ row.closing[c] | money0 }}</div>
+    <div class="note">{{ t('opening') }} {{ row.opening[c] | money0 }} · {{ t('cash_in') }} {{ row.inflow[c] | money0 }} · {{ t('cash_out') }} {{ row.outflow[c] | money0 }}</div>
+  </div>
+{% endfor %}
+</div>
+
+<div class="card" style="margin-top:14px">
+  <div class="scroll">
+  <table>
+    <thead><tr>
+      <th>{{ t('date') }}</th><th>{{ t('tables') }}</th><th>{{ t('detail') }}</th>
+      <th>{{ t('cost_by_category') }}</th><th>{{ t('status') }}</th>
+      <th class="num">{{ t('cash_in') }}</th><th class="num">{{ t('cash_out') }}</th><th>{{ t('currency') }}</th>
+    </tr></thead>
+    <tbody>
+    {% for m in moves %}
+      <tr>
+        <td class="nowrap">{{ m.date | d }}{% if m.nominal != m.date %}<br><span class="small muted">({{ m.nominal | d }})</span>{% endif %}</td>
+        <td class="small">{{ stream_label(m.stream) }}</td>
+        <td>{{ m.description }}</td>
+        <td class="small muted">{{ m.category }}</td>
+        <td><span class="badge b-{{ m.status }}">{{ t('status_' + m.status) }}</span></td>
+        <td class="num pos">{{ m.amount | money if m.direction == 'in' else '' }}</td>
+        <td class="num neg">{{ m.amount | money if m.direction == 'out' else '' }}</td>
+        <td>{{ m.currency }}</td>
+      </tr>
+    {% else %}<tr><td colspan="8" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+<a class="btn sec" href="{{ url_for('forecast') }}">{{ t('back') }}</a>
+{% endblock %}

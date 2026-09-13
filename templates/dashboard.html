@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+{% set active = 'dashboard' %}
+{% block title %}{{ t('dashboard') }}{% endblock %}
+{% block body %}
+
+{% set cur = strip.current %}
+<div class="hero">
+  <div>
+    <div class="lbl">{{ t('cash_position_now') }}</div>
+    <div class="big {{ cur.closing_eqv | neg }}">{{ cur.closing_eqv | money0 }} <span style="font-size:20px">EGP</span></div>
+    <div class="split-ccy">
+      EGP <b class="{{ cur.closing.EGP | neg }}">{{ cur.closing.EGP | money0 }}</b> &nbsp;·&nbsp;
+      USD <b class="{{ cur.closing.USD | neg }}">{{ cur.closing.USD | money0 }}</b>
+      &nbsp;·&nbsp; {{ t('fx_rate') }} {{ strip.fx | money }}
+    </div>
+  </div>
+  <div class="grow"></div>
+  {% for r in strip.rows %}
+    {% if not r.is_current %}
+    <div class="side">
+      <div class="lbl">
+        {%- if r.is_past %}{{ t('last_week') }}
+        {%- elif r.offset == 1 %}{{ t('next_week') }}
+        {%- else %}{{ t('week') }} +{{ r.offset }}{% endif -%}
+      </div>
+      <div class="v {{ r.closing_eqv | neg }}">{{ r.closing_eqv | money0 }}</div>
+      <div class="lbl" style="text-transform:none">{{ r.week.start | d }}</div>
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+
+{# ---- shortfall / gap ---- #}
+{% set gaps = strip.rows | selectattr('gap_eqv', 'lt', 0) | list %}
+{% if gaps %}
+<div class="card" style="border-color:#f0b6b1;background:var(--out-bg)">
+  <h2 style="color:var(--out);margin-top:0">{{ t('shortfall') }}</h2>
+  <div class="scroll">
+  <table class="tight">
+    <thead><tr><th>{{ t('week') }}</th><th class="num">{{ t('closing') }} ≡EGP</th>
+      <th class="num">EGP</th><th class="num">USD</th><th class="num">{{ t('gap') }} ≡EGP</th></tr></thead>
+    <tbody>
+    {% for r in gaps %}
+      <tr><td class="nowrap">{{ r.week.label }}</td>
+        <td class="num {{ r.closing_eqv | neg }}">{{ r.closing_eqv | money0 }}</td>
+        <td class="num {{ r.closing.EGP | neg }}">{{ r.closing.EGP | money0 }}</td>
+        <td class="num {{ r.closing.USD | neg }}">{{ r.closing.USD | money0 }}</td>
+        <td class="num neg">{{ r.gap_eqv | money0 }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr class="total"><td>{{ t('total') }}</td><td colspan="3"></td>
+      <td class="num neg">{{ strip.total_gap_eqv | money0 }}</td></tr></tfoot>
+  </table>
+  </div>
+  <p class="hint">{{ t('gap_help') }}</p>
+</div>
+{% endif %}
+
+<div class="grid g4">
+  <div class="kpi in">
+    <div class="lbl">{{ t('cash_in') }} — {{ t('next_6_weeks', n=dash.rows|length) }}</div>
+    <div class="val">{{ dash.totals_eqv.inflow | money0 }}</div>
+    <div class="note">EGP {{ dash.totals.inflow.EGP | money0 }} · USD {{ dash.totals.inflow.USD | money0 }}</div>
+  </div>
+  <div class="kpi out">
+    <div class="lbl">{{ t('cash_out') }} — {{ t('next_6_weeks', n=dash.rows|length) }}</div>
+    <div class="val">{{ dash.totals_eqv.outflow | money0 }}</div>
+    <div class="note">EGP {{ dash.totals.outflow.EGP | money0 }} · USD {{ dash.totals.outflow.USD | money0 }}</div>
+  </div>
+  <div class="kpi {{ 'bad' if dash.lowest.EGP.amount < 0 or dash.lowest.USD.amount < 0 }}">
+    <div class="lbl">{{ t('lowest_balance') }}</div>
+    <div class="val {{ dash.lowest.EGP.amount | neg }}">{{ dash.lowest.EGP.amount | money0 }} <span class="small">EGP</span></div>
+    <div class="note">{{ dash.lowest.EGP.week.short if dash.lowest.EGP.week }} ·
+      USD <span class="{{ dash.lowest.USD.amount | neg }}">{{ dash.lowest.USD.amount | money0 }}</span></div>
+  </div>
+  <div class="kpi {{ 'warn' if comp.gap_count else 'ok' }}">
+    <div class="lbl">{{ t('completeness') }}</div>
+    <div class="val">{{ comp.gap_count }}</div>
+    <div class="note">{{ t('gaps_found') }}
+      {% if can('audit_report') %}· <a href="{{ url_for('reports', report='completeness') }}">{{ t('detail') }}</a>{% endif %}
+    </div>
+  </div>
+</div>
+
+{# ---- week sign-off ---- #}
+{% if can('week_signoff') or signoff %}
+<div class="card" style="margin-top:14px">
+  <h2>{{ t('week_review') }}</h2>
+  {% if signoff %}
+    <p class="sub" style="margin-bottom:8px">
+      <span class="badge b-approved">{{ t('confirmed') }}</span>
+      {{ t('confirmed_by') }} <b>{{ signoff.confirmed_by }}</b> — {{ signoff.confirmed_at | dt }}
+      {% if signoff.review_sent_at %}<br>{{ t('review_sent') }} {{ signoff.review_sent_to }} ({{ signoff.review_sent_at | dt }}){% endif %}
+    </p>
+    {% if can('week_signoff') %}
+    <form method="post" action="{{ url_for('week_reopen', week_id=cur.week.week_id) }}">
+      <button class="btn sec sm">{{ t('reopen_week') }}</button></form>
+    {% endif %}
+  {% elif can('week_signoff') %}
+    <p class="sub">{{ t('signoff_help') }}</p>
+    <form method="post" action="{{ url_for('week_confirm', week_id=cur.week.week_id) }}">
+      <div class="field"><label>{{ t('review_note') }}</label>
+        <input type="text" name="notes" placeholder="{{ t('review_note_hint') }}"></div>
+      <button class="btn go">{{ t('confirm_week') }}</button>
+    </form>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ---- the six-week table, one section per currency ---- #}
+<div class="card">
+  <h2>{{ t('next_6_weeks', n=dash.rows|length) }}</h2>
+  <div class="scroll">
+  <table class="fc">
+    <thead>
+      <tr>
+        <th rowspan="2" class="wk">{{ t('week') }}</th>
+        <th colspan="4" class="grp">{{ t('egp_section') }}</th>
+        <th colspan="4" class="grp usd sep">{{ t('usd_section') }}</th>
+        <th colspan="2" class="grp eqv sep">{{ t('egp_equivalent') }}</th>
+        <th rowspan="2"></th>
+      </tr>
+      <tr>
+        <th class="num">{{ t('opening') }}</th><th class="num">{{ t('cash_in') }}</th>
+        <th class="num">{{ t('cash_out') }}</th><th class="num">{{ t('closing') }}</th>
+        <th class="num sep">{{ t('opening') }}</th><th class="num">{{ t('cash_in') }}</th>
+        <th class="num">{{ t('cash_out') }}</th><th class="num">{{ t('closing') }}</th>
+        <th class="num sep">{{ t('net_movement') }}</th><th class="num">{{ t('closing') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in dash.rows %}
+      <tr>
+        <td class="nowrap"><b>{{ r.week.label }}</b></td>
+        <td class="num {{ 'ovr' if r.overridden.EGP }} {{ r.opening.EGP | neg }}">{{ r.opening.EGP | money0 }}</td>
+        <td class="num pos">{{ r.inflow.EGP | money0 }}</td>
+        <td class="num">{{ r.outflow.EGP | money0 }}</td>
+        <td class="num b {{ r.closing.EGP | neg }}">{{ r.closing.EGP | money0 }}</td>
+        <td class="num sep {{ 'ovr' if r.overridden.USD }} {{ r.opening.USD | neg }}">{{ r.opening.USD | money0 }}</td>
+        <td class="num pos">{{ r.inflow.USD | money0 }}</td>
+        <td class="num">{{ r.outflow.USD | money0 }}</td>
+        <td class="num b {{ r.closing.USD | neg }}">{{ r.closing.USD | money0 }}</td>
+        <td class="num sep {{ r.net_eqv | neg }}">{{ r.net_eqv | money0 }}</td>
+        <td class="num b {{ r.closing_eqv | neg }}">{{ r.closing_eqv | money0 }}</td>
+        <td><a class="btn sm sec" href="{{ url_for('week_detail', week_id=r.week.week_id) }}">{{ t('detail') }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">
+    {% if dash.forecast.include_pending %}{{ t('include_pending') }}{% else %}{{ t('committed') }}{% endif %}
+    · {{ t('fx_rate') }} {{ dash.fx | money }}
+  </p>
+</div>
+
+{% if can('banks_view') %}
+<div class="card">
+  <h2>{{ t('banks') }}</h2>
+  <table class="tight">
+    <thead><tr><th>{{ t('account_name') }}</th><th>{{ t('currency') }}</th><th class="num">{{ t('balance') }}</th></tr></thead>
+    <tbody>
+    {% for b in dash.banks %}
+      <tr class="{{ '' if b.include_in_forecast else 'past' }}">
+        <td>{{ b.name }}{% if not b.include_in_forecast %} <span class="badge b-cancelled">excl.</span>{% endif %}</td>
+        <td>{{ b.currency }}</td><td class="num {{ b.balance | neg }}">{{ b.balance | money0 }}</td>
+      </tr>
+    {% else %}<tr><td colspan="3" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+    </tbody>
+    <tfoot><tr class="total"><td>{{ t('egp_equivalent') }}</td><td></td>
+      <td class="num {{ dash.opening_eqv | neg }}">{{ dash.opening_eqv | money0 }}</td></tr></tfoot>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

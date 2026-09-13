@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% set active = 'reports' %}
+{% block title %}{{ t('preview') }}{% endblock %}
+{% block body %}
+<h1>{{ t('preview') }} — {{ stream_label(key) }}</h1>
+<p class="sub">{{ filename }} · {{ t('import_drafts') }}</p>
+
+<div class="grid g4">
+  <div class="kpi ok"><div class="lbl">{{ t('accepted') }}</div>
+    <div class="val">{{ accepted | length }}</div></div>
+  <div class="kpi {{ 'bad' if rejected }}"><div class="lbl">{{ t('rejected') }}</div>
+    <div class="val {{ 'neg' if rejected }}">{{ rejected | length }}</div></div>
+  <div class="kpi"><div class="lbl">{{ t('total') }} EGP</div>
+    <div class="val">{{ summary.totals.EGP | money0 }}</div></div>
+  <div class="kpi"><div class="lbl">{{ t('total') }} USD</div>
+    <div class="val">{{ summary.totals.USD | money0 }}</div></div>
+</div>
+
+{% if rejected %}
+<div class="card" style="border-color:#f0b6b1">
+  <h2 style="color:var(--out)">{{ t('rejected') }}</h2>
+  <div class="scroll">
+  <table class="tight">
+    <thead><tr><th>{{ t('row') }}</th><th>{{ t('reason') }}</th></tr></thead>
+    <tbody>
+    {% for r in rejected %}
+      <tr><td>{{ r._row }}</td>
+        <td class="small">{% for e in r.errors %}<div class="neg">{{ e }}</div>{% endfor %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">Rejected rows are not imported. Correct them in the file and upload again.</p>
+</div>
+{% endif %}
+
+{% if accepted %}
+<div class="card">
+  <h2>{{ t('accepted') }}</h2>
+  <div class="scroll">
+  <table class="tight">
+    <thead><tr><th>{{ t('row') }}</th>
+      {% for fl in spec.fields %}{% if fl.type != 'textarea' %}
+        <th class="{{ 'num' if fl.type in ('money','int','pct') }}">{{ field_label(fl) }}</th>
+      {% endif %}{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in accepted %}
+      <tr><td class="muted">{{ r._row }}</td>
+      {% for fl in spec.fields %}{% if fl.type != 'textarea' %}
+        {% set val = r.get(fl.name) %}
+        <td class="{{ 'num' if fl.type in ('money','int','pct') }}">
+          {%- if fl.type == 'money' -%}{{ val | money }}
+          {%- elif fl.type == 'date' -%}{{ val | d }}
+          {%- elif fl.type == 'revenue_type' -%}{% for x in refs.revenue_types %}{{ x.name_en if x.id == val }}{% endfor %}
+          {%- elif fl.type == 'cost_category' -%}{% for x in refs.cost_categories %}{{ x.name_en if x.id == val }}{% endfor %}
+          {%- elif fl.type == 'select' -%}{% for o in fl.options %}{{ o[1] if o[0] == val }}{% endfor %}
+          {%- else -%}{{ val if val is not none else '' }}{%- endif -%}
+        </td>
+      {% endif %}{% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="row-actions" style="margin-top:12px">
+    <form method="post" action="{{ url_for('import_commit', key=key) }}">
+      <button class="btn go">{{ t('commit_import') }} ({{ accepted | length }})</button>
+    </form>
+    <a class="btn sec" href="{{ url_for('reports', report='imports') }}">{{ t('cancel') }}</a>
+  </div>
+</div>
+{% else %}
+<div class="flash warning">Nothing in that file could be imported.</div>
+<a class="btn sec" href="{{ url_for('reports', report='imports') }}">{{ t('back') }}</a>
+{% endif %}
+{% endblock %}
