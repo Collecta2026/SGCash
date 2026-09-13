@@ -40,6 +40,7 @@
 {% if current_user.is_authenticated %}
 <nav class="main">
   {{ nav_link('dashboard', t('dashboard'), 'dashboard', 'dashboard') }}
+  {{ nav_link('position', t('weekly_position'), 'forecast', 'position') }}
   {{ nav_link('forecast', t('forecast'), 'forecast', 'forecast') }}
 
   {% if my_streams %}

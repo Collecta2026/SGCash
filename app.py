@@ -410,10 +410,45 @@ def create_app(config=None):
         health = svc.cash_health(n)
         signoff = svc.get_signoff(svc.current_week_id())
         pending = _pending_count()
-        banks = svc.bank_balances()
+        # The same figures, drawn. The charts take a wider window than the
+        # headline strip so the shape of the forecast is visible.
+        cstrip = svc.cash_position_strip(back=2, ahead=max(3, n - 1))
+        pts = [(r["week"]["short"], r["closing_eqv"]) for r in cstrip["rows"]]
+        io_pts = [(r["week"]["short"], r["inflow_eqv"], r["outflow_eqv"])
+                  for r in cstrip["rows"]]
+        cut = next((i for i, r in enumerate(cstrip["rows"]) if r["is_current"]), 0)
+        buffer_eqv = svc.egp_equivalent(cstrip["buffers"], cstrip["fx"])
+        chart_balance = charts.cash_balance(
+            pts, threshold=float(buffer_eqv), projected_from=cut,
+            title=i18n.t("chart_cash_position"), currency="EGP",
+            legend_confirmed=i18n.t("legend_confirmed"),
+            legend_projected=i18n.t("legend_projected"))
+        chart_in_out = charts.money_in_out(
+            io_pts, projected_from=cut, title=i18n.t("chart_in_out"),
+            currency="EGP", legend_in=i18n.t("legend_money_in"),
+            legend_out=i18n.t("legend_money_out"),
+            legend_projected=i18n.t("legend_projected"))
         return render_template("dashboard.html", dash=dash, n=n, strip=strip,
                                comp=comp, health=health, signoff=signoff,
-                               pending=pending, banks=banks)
+                               pending=pending,
+                               chart_balance=chart_balance,
+                               chart_in_out=chart_in_out)
+
+    @app.route("/position")
+    @login_required
+    @require("forecast")
+    def position():
+        """The weekly detail: bank balances, the six-week table, any shortfall
+        and the week sign-off. Split off the dashboard so that page carries
+        only the cash position and the available-cash light."""
+        n = parse_int(request.args.get("weeks")) or svc.setting_int("dashboard_weeks")
+        n = max(1, min(26, n))
+        return render_template(
+            "position.html",
+            dash=svc.dashboard(n), n=n,
+            strip=svc.cash_position_strip(back=1, ahead=3),
+            banks=svc.bank_balances(),
+            signoff=svc.get_signoff(svc.current_week_id()))
 
     @app.route("/forecast")
     @login_required
@@ -786,10 +821,14 @@ def create_app(config=None):
             buffer_eqv = svc.egp_equivalent(strip["buffers"], strip["fx"])
             ctx["chart_balance"] = charts.cash_balance(
                 pts, threshold=float(buffer_eqv), projected_from=cut,
-                title="Cash position by week (EGP equivalent)", currency="EGP")
+                title=i18n.t("chart_cash_position"), currency="EGP",
+                legend_confirmed=i18n.t("legend_confirmed"),
+                legend_projected=i18n.t("legend_projected"))
             ctx["chart_in_out"] = charts.money_in_out(
-                io_pts, projected_from=cut,
-                title="Money in and out by week (EGP equivalent)", currency="EGP")
+                io_pts, projected_from=cut, title=i18n.t("chart_in_out"),
+                currency="EGP", legend_in=i18n.t("legend_money_in"),
+                legend_out=i18n.t("legend_money_out"),
+                legend_projected=i18n.t("legend_projected"))
             ctx["back"] = back
             if name == "shortfall":
                 ctx["gaps"] = [r for r in strip["rows"] if r["gap_eqv"] < 0]
@@ -1158,6 +1197,7 @@ def create_app(config=None):
 # ============================================================
 
 ENDPOINT_CAP = {
+    "position": "forecast",
     # "dashboard" is deliberately absent: the view itself sends a data-entry
     # user to their own table rather than refusing them the front page.
     "forecast": "forecast",

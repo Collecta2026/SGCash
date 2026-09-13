@@ -1,6 +1,6 @@
 # Scientific Gate — Cash Flow Budgeting System
 
-Release 3. A bilingual (English / العربية) weekly cash flow forecasting and
+Release 4. A bilingual (English / العربية) weekly cash flow forecasting and
 budgeting system for Scientific Gate Co., built on the same architecture as
 Collecta: Flask + SQLAlchemy, Neon/Postgres in production, a role and
 capability matrix enforced server-side, an approvals queue and a full audit
@@ -72,7 +72,7 @@ Saturday is worked.
 
 ## Accuracy
 
-The engine is covered by 163 tests in `tests/`, each asserting figures computed
+The engine is covered by 169 tests in `tests/`, each asserting figures computed
 independently of the code under test:
 
 ```bash
@@ -167,7 +167,22 @@ Approvals pages, the reports and their graphs, the upload templates, the
 traffic light at 15% headroom, the named banks and the balances table at the top
 of the dashboard. If any of it is ever dropped, the test that names it fails.
 
-The suite now stands at 163 tests.
+The suite now stands at 169 tests.
 
 **Version** — `/healthz` and the page footer report the release, so you can
 always tell which build is actually live. See `UPDATE_RENDER.md`.
+
+## Release 4 additions
+
+**The dashboard is a summary again.** It carries the available-cash traffic
+light, the cash position with the weeks either side of it, any shortfall, the
+headline totals — and the same figures drawn: a cash position line across the
+window with the confirmed part solid and the forecast dashed against the minimum
+buffer, and grouped bars of money in against money out, week by week. Chart
+titles and legends are translated, so the Arabic page is Arabic throughout.
+
+**Weekly Position** is a new page holding the detail that used to crowd the
+dashboard: the bank and cash balances, the six-week table split by currency,
+the shortfall table and the weekly review with the Confirm the week button. It
+sits on the menu next to the dashboard and follows the same permissions as the
+forecast, so the data-entry seats never see it.

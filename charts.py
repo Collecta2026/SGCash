@@ -92,7 +92,8 @@ def _empty(w, h, message):
 # ============================================================
 
 def cash_balance(points, threshold=0.0, projected_from=None, title="Cash balance",
-                 width=900, height=300, currency=""):
+                 width=900, height=300, currency="",
+                 legend_confirmed="Confirmed", legend_projected="Projected"):
     """`points` is a list of (label, value). Values below zero shade red.
 
     `projected_from` is the index at which the line stops being the
@@ -184,13 +185,13 @@ def cash_balance(points, threshold=0.0, projected_from=None, title="Cash balance
     out.append(f'<line x1="{lx}" y1="{height - 7}" x2="{lx + 16}" y2="{height - 7}" '
                f'stroke="{BRAND_DEEP}" stroke-width="2"/>'
                f'<text x="{lx + 22}" y="{height - 4}" fill="{MUTED}" font-size="10">'
-               f'Confirmed</text>')
+               f'{escape(str(legend_confirmed))}</text>')
     if cut < n - 1:
         lx += 96
         out.append(f'<line x1="{lx}" y1="{height - 7}" x2="{lx + 16}" y2="{height - 7}" '
                    f'stroke="{BRAND}" stroke-width="2" stroke-dasharray="5 3"/>'
                    f'<text x="{lx + 22}" y="{height - 4}" fill="{MUTED}" font-size="10">'
-                   f'Projected</text>')
+                   f'{escape(str(legend_projected))}</text>')
     out.append("</svg>")
     return "".join(out)
 
@@ -200,7 +201,8 @@ def cash_balance(points, threshold=0.0, projected_from=None, title="Cash balance
 # ============================================================
 
 def money_in_out(points, title="Money in and out", width=900, height=300,
-                 projected_from=None, currency=""):
+                 projected_from=None, currency="", legend_in="Money in",
+                 legend_out="Money out", legend_projected="Projected"):
     """`points` is a list of (label, money_in, money_out)."""
     if not points:
         return _empty(width, height, "Nothing to plot")
@@ -248,16 +250,16 @@ def money_in_out(points, title="Money in and out", width=900, height=300,
 
     out.append(f'<line x1="{pad_l}" y1="{base:.1f}" x2="{width - pad_r}" '
                f'y2="{base:.1f}" stroke="{INK}" stroke-width="1.5"/>')
-    for k, (name, colour) in enumerate((("Money in", POS), ("Money out", NEG))):
+    for k, (name, colour) in enumerate(((legend_in, POS), (legend_out, NEG))):
         lx = pad_l + k * 110
         out.append(f'<rect x="{lx}" y="{height - 13}" width="11" height="11" rx="2" '
                    f'fill="{colour}"/><text x="{lx + 17}" y="{height - 4}" '
-                   f'fill="{MUTED}" font-size="10">{name}</text>')
+                   f'fill="{MUTED}" font-size="10">{escape(str(name))}</text>')
     if projected_from is not None and projected_from < n:
         lx = pad_l + 230
         out.append(f'<rect x="{lx}" y="{height - 13}" width="11" height="11" rx="2" '
                    f'fill="{MUTED}" opacity="0.55"/><text x="{lx + 17}" y="{height - 4}" '
-                   f'fill="{MUTED}" font-size="10">Projected</text>')
+                   f'fill="{MUTED}" font-size="10">{escape(str(legend_projected))}</text>')
     out.append("</svg>")
     return "".join(out)
 

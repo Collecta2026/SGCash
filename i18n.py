@@ -121,6 +121,27 @@ T = {
     "as_at": ("As at", "كما في"),
     "include_in_forecast": ("In forecast", "ضمن التوقعات"),
     "latest_balances": ("Latest recorded balances", "آخر أرصدة مسجلة"),
+    "weekly_position": ("Weekly Position", "الموقف الأسبوعي"),
+    "weekly_position_help": (
+        "Bank and cash balances, the week by week position and the weekly review.",
+        "أرصدة البنوك والنقدية، والموقف أسبوعاً بأسبوع، والمراجعة الأسبوعية."),
+    "detail_moved": ("Balances, the week by week table and the weekly review are on",
+                     "الأرصدة وجدول الأسابيع والمراجعة الأسبوعية في"),
+    "chart_cash_position": ("Cash position by week (EGP equivalent)",
+                            "الموقف النقدي أسبوعياً (ما يعادله بالجنيه)"),
+    "chart_cash_position_help": (
+        "The solid line is the position to date; the dashed line is the forecast. "
+        "The marked level is the minimum buffer.",
+        "الخط المتصل هو الموقف حتى تاريخه، والخط المتقطع هو التوقع. "
+        "المستوى المحدد هو الحد الأدنى للاحتياطي."),
+    "chart_in_out": ("Money in and out by week (EGP equivalent)",
+                     "المتحصلات والمدفوعات أسبوعياً (ما يعادله بالجنيه)"),
+    "chart_in_out_help": ("Green is cash expected in, red is cash committed out.",
+                          "الأخضر متحصلات متوقعة، والأحمر مدفوعات ملتزم بها."),
+    "legend_confirmed": ("Confirmed", "مؤكد"),
+    "legend_projected": ("Projected", "متوقع"),
+    "legend_money_in": ("Money in", "متحصلات"),
+    "legend_money_out": ("Money out", "مدفوعات"),
     "account_type": ("Type", "النوع"),
     "acct_bank": ("Bank", "بنك"),
     "acct_wallet": ("Wallet", "محفظة"),

@@ -351,3 +351,9 @@ footer { color: var(--muted); font-size: 12px; padding: 18px; text-align: center
 }
 .print-head { display: none; border-bottom: 2px solid var(--brand-deep); padding-bottom: 6px; margin-bottom: 10px; }
 .print-head img { height: 38px; }
+
+/* ---------- charts on the dashboard ---------- */
+.chart-card { padding-bottom: 10px; }
+.chart-wrap { width: 100%; overflow-x: auto; }
+.chart-wrap svg { display: block; width: 100%; height: auto; min-width: 520px; }
+html[dir="rtl"] .chart-wrap svg { direction: ltr; }
