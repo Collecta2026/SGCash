@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% set active = 'banks' %}
+{% block title %}{{ t('banks') }}{% endblock %}
+{% block body %}
+<h1>{{ t('banks') }}</h1>
+<p class="sub">{{ t('opening') }}: EGP {{ tot.EGP | money }} · USD {{ tot.USD | money }} · {{ t('egp_equivalent') }} {{ eqv | money }}</p>
+
+<div class="card">
+<div class="scroll">
+<table>
+  <thead><tr>
+    <th>{{ t('account_name') }}</th><th>{{ t('bank_name') }}</th><th>{{ t('account_no') }}</th>
+    <th>{{ t('currency') }}</th><th class="num">{{ t('balance') }}</th><th class="num">{{ t('overdraft_limit') }}</th>
+    <th>{{ t('as_at') }}</th><th>{{ t('include_in_forecast') }}</th><th>{{ t('actions') }}</th>
+  </tr></thead>
+  <tbody>
+  {% for b in rows %}
+  <tr>
+    <form method="post">
+    <input type="hidden" name="id" value="{{ b.id }}">
+    <td><input type="text" name="name" value="{{ b.name }}" required></td>
+    <td><input type="text" name="bank" value="{{ b.bank or '' }}"></td>
+    <td><input type="text" name="account_no" value="{{ b.account_no or '' }}"></td>
+    <td><select name="currency">{% for c in CURRENCIES %}<option value="{{ c }}" {{ 'selected' if b.currency == c }}>{{ c }}</option>{% endfor %}</select></td>
+    <td class="num"><input type="number" step="0.01" name="balance" value="{{ b.balance }}"></td>
+    <td class="num"><input type="number" step="0.01" name="overdraft_limit" value="{{ b.overdraft_limit or 0 }}"></td>
+    <td><input type="date" name="as_at" value="{{ b.as_at.isoformat() if b.as_at else '' }}"></td>
+    <td class="center"><input type="checkbox" name="include_in_forecast" value="1" {{ 'checked' if b.include_in_forecast }}></td>
+    <td><div class="row-actions">
+      {% if can('banks_edit') %}<button class="btn sm">{{ t('save') }}</button>{% endif %}
+    </div></td>
+    </form>
+  </tr>
+  {% if can('banks_edit') %}
+  <tr><td colspan="9" style="padding:0">
+    <form method="post" action="{{ url_for('bank_delete', rid=b.id) }}" onsubmit="return confirm('{{ t('confirm_delete') }}')">
+      <button class="btn sm danger" style="margin:2px 0 8px">{{ t('delete') }} — {{ b.name }}</button></form>
+  </td></tr>
+  {% endif %}
+  {% else %}<tr><td colspan="9" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+
+{% if can('banks_edit') %}
+<div class="card">
+  <h2>{{ t('add') }}</h2>
+  <form method="post"><div class="grid g4">
+    <div class="field"><label>{{ t('account_name') }} *</label><input type="text" name="name" required></div>
+    <div class="field"><label>{{ t('bank_name') }}</label><input type="text" name="bank"></div>
+    <div class="field"><label>{{ t('account_no') }}</label><input type="text" name="account_no"></div>
+    <div class="field"><label>{{ t('currency') }}</label><select name="currency">{% for c in CURRENCIES %}<option>{{ c }}</option>{% endfor %}</select></div>
+    <div class="field"><label>{{ t('balance') }}</label><input type="number" step="0.01" name="balance" value="0"></div>
+    <div class="field"><label>{{ t('overdraft_limit') }}</label><input type="number" step="0.01" name="overdraft_limit" value="0"></div>
+    <div class="field"><label>{{ t('as_at') }}</label><input type="date" name="as_at" value="{{ today().isoformat() }}"></div>
+    <div class="field"><label>{{ t('include_in_forecast') }}</label><input type="checkbox" name="include_in_forecast" value="1" checked style="width:auto"></div>
+  </div><button class="btn">{{ t('add') }}</button></form>
+</div>
+{% endif %}
+{% endblock %}

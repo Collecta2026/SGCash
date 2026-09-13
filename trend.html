@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% set active = 'trend' %}
+{% block title %}{{ t('trend') }}{% endblock %}
+{% block body %}
+<h1>{{ t('trend') }}</h1>
+<p class="sub">{{ t('trend_intro', n=tf.lookback) }}
+  {% if tf.history_weeks %}{{ tf.history_weeks[0].start | d }} – {{ tf.history_weeks[-1].end | d }}{% endif %}
+  · {{ t('fx_rate') }} {{ tf.fx | money }}</p>
+
+<form class="toolbar" method="get">
+  <div class="field"><label>{{ t('lookback') }}</label>
+    <input type="number" name="lookback" min="2" max="52" value="{{ lb }}"></div>
+  <div class="field"><label>{{ t('project_ahead') }}</label>
+    <input type="number" name="ahead" min="1" max="52" value="{{ ah }}"></div>
+  <div class="field"><label>{{ t('method') }}</label>
+    <select name="method">
+      <option value="linear" {{ 'selected' if method == 'linear' }}>{{ t('method_linear') }}</option>
+      <option value="average" {{ 'selected' if method == 'average' }}>{{ t('method_average') }}</option>
+    </select></div>
+  <button class="btn sec">{{ t('filter') }}</button>
+</form>
+
+{% if not tf.rows %}
+  <div class="flash info">{{ t('no_history') }}</div>
+{% endif %}
+
+<div class="grid g4">
+  <div class="kpi in"><div class="lbl">{{ t('revenue_by_type') }} — {{ t('history_total', n=tf.lookback) }}</div>
+    <div class="val">{{ tf.totals.revenue_hist | money0 }}</div></div>
+  <div class="kpi in"><div class="lbl">{{ t('revenue_by_type') }} — {{ t('projected') }}</div>
+    <div class="val">{{ tf.totals.revenue_proj | money0 }}</div>
+    <div class="note">{{ t('booked') }} {{ tf.totals.revenue_booked | money0 }}</div></div>
+  <div class="kpi out"><div class="lbl">{{ t('cost_by_category') }} — {{ t('history_total', n=tf.lookback) }}</div>
+    <div class="val">{{ tf.totals.cost_hist | money0 }}</div></div>
+  <div class="kpi out"><div class="lbl">{{ t('cost_by_category') }} — {{ t('projected') }}</div>
+    <div class="val">{{ tf.totals.cost_proj | money0 }}</div>
+    <div class="note">{{ t('booked') }} {{ tf.totals.cost_booked | money0 }}</div></div>
+</div>
+
+{% macro element_table(rows, title) %}
+<div class="card">
+  <h2>{{ title }}</h2>
+  <div class="scroll">
+  <table class="tight">
+    <thead><tr>
+      <th>{{ title }}</th>
+      {% for w in tf.history_weeks %}<th class="num small">{{ w.short }}</th>{% endfor %}
+      <th class="num">{{ t('history_total', n=tf.lookback) }}</th>
+      <th class="num">{{ t('weekly_average') }}</th>
+      <th class="num">{{ t('trend_per_week') }}</th>
+      <th class="num">{{ t('projected') }}</th>
+      <th class="num">{{ t('booked') }}</th>
+      <th class="num">{{ t('variance') }}</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="nowrap">{{ r.name }}</td>
+        {% for i in range(tf.lookback) %}
+          <td class="num small">{{ (r.by.EGP.series[i] + r.by.USD.series[i] * tf.fx) | money0 }}</td>
+        {% endfor %}
+        <td class="num">{{ r.total_eqv | money0 }}</td>
+        <td class="num">{{ r.avg_eqv | money0 }}</td>
+        <td class="num {{ 'pos' if r.slope_eqv > 0 else ('neg' if r.slope_eqv < 0) }}">
+          {{ r.slope_eqv | money0 }}{% if r.trend_pct is not none %}<div class="small muted">{{ r.trend_pct | pct }}</div>{% endif %}
+        </td>
+        <td class="num"><b>{{ r.projected_eqv | money0 }}</b></td>
+        <td class="num">{{ r.booked_eqv | money0 }}</td>
+        <td class="num {{ 'neg' if r.variance_eqv < 0 }}">{{ r.variance_eqv | money0 }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="99" class="muted">{{ t('no_rows') }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">{{ t('variance_help') }}</p>
+</div>
+{% endmacro %}
+
+{{ element_table(tf.revenue, t('revenue_by_type')) }}
+{{ element_table(tf.costs, t('cost_by_category')) }}
+
+<div class="card">
+  <h2>{{ t('projected_position') }}</h2>
+  <div class="scroll">
+  <table class="fc tight">
+    <thead><tr>
+      <th>{{ t('week') }}</th>
+      {% for c in CURRENCIES %}
+        <th class="num">{{ t('opening') }} {{ c }}</th>
+        <th class="num">{{ t('cash_in') }} {{ c }}</th>
+        <th class="num">{{ t('cash_out') }} {{ c }}</th>
+        <th class="num">{{ t('closing') }} {{ c }}</th>
+      {% endfor %}
+      <th class="num">{{ t('projected') }} ≡EGP</th>
+      <th class="num">{{ t('booked_position') }} ≡EGP</th>
+    </tr></thead>
+    <tbody>
+    {% for p in tf.position %}
+      <tr>
+        <td class="nowrap">{{ p.week.label if p.week }}</td>
+        {% for c in CURRENCIES %}
+          <td class="num">{{ p.opening[c] | money0 }}</td>
+          <td class="num pos">{{ p.inflow[c] | money0 }}</td>
+          <td class="num neg">{{ p.outflow[c] | money0 }}</td>
+          <td class="num {{ 'short' if p.closing[c] < 0 }}">{{ p.closing[c] | money0 }}</td>
+        {% endfor %}
+        <td class="num"><b>{{ p.closing_eqv | money0 }}</b></td>
+        <td class="num muted">{{ p.booked_closing_eqv | money0 if p.booked_closing_eqv is not none }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="hint">
+    {{ t('method') }}: {{ t('method_linear') if tf.method == 'linear' else t('method_average') }}.
+    A window shorter than three weeks always falls back to the flat average.
+    Projections are floored at zero — a cost or receipt line cannot trend below nothing.
+  </p>
+</div>
+{% endblock %}

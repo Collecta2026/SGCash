@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}{{ stream_label(key) }}{% endblock %}
+{% block body %}
+<h1>{{ stream_label(key) }}</h1>
+<p class="sub">
+  {% if spec.direction == 'in' %}<span class="badge b-in">{{ t('cash_in') }}</span>
+  {% elif spec.direction == 'out' %}<span class="badge b-out">{{ t('cash_out') }}</span>
+  {% else %}<span class="badge b-in">{{ t('cash_in') }}</span> <span class="badge b-out">{{ t('cash_out') }}</span>{% endif %}
+  · {{ rows|length }} {{ t('total')|lower }}
+</p>
+
+<form class="toolbar" method="get">
+  <div class="field grow"><label>{{ t('search') }}</label><input type="text" name="q" value="{{ term }}"></div>
+  <div class="field"><label>{{ t('status') }}</label>
+    <select name="status"><option value="">{{ t('all') }}</option>
+      {% for s in STATUSES %}<option value="{{ s }}" {{ 'selected' if status == s }}>{{ t('status_' + s) }}</option>{% endfor %}
+    </select></div>
+  <div class="field"><label>{{ t('currency') }}</label>
+    <select name="ccy"><option value="">{{ t('all') }}</option>
+      {% for c in CURRENCIES %}<option value="{{ c }}" {{ 'selected' if ccy == c }}>{{ c }}</option>{% endfor %}
+    </select></div>
+  <button class="btn sec">{{ t('filter') }}</button>
+  {% if spec.weekly_planner %}<a class="btn sec" href="{{ url_for('table_weekly', key=key) }}">{{ t('weekly_view') }}</a>{% endif %}
+  {% if can_s(key, 'enter') %}<a class="btn" href="{{ url_for('table_new', key=key) }}">+ {{ t('add') }}</a>{% endif %}
+</form>
+
+<div class="card">
+<div class="scroll">
+<table>
+  <thead><tr>
+    {% for fl in spec.fields %}{% if fl.type != 'textarea' %}<th class="{{ 'num' if fl.type in ('money','int','pct') }}">{{ field_label(fl) }}</th>{% endif %}{% endfor %}
+    <th>{{ t('status') }}</th><th>{{ t('entered_by') }}</th><th>{{ t('actions') }}</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      {% for fl in spec.fields %}{% if fl.type != 'textarea' %}
+        <td class="{{ 'num' if fl.type in ('money','int','pct') }}">
+          {%- set v = r[fl.name] -%}
+          {%- if fl.type == 'money' -%}{{ v | money }}
+          {%- elif fl.type == 'date' -%}{{ v | d }}
+          {%- elif fl.type == 'pct' -%}{{ v }}%
+          {%- elif fl.type == 'weekday' -%}{% for wd, en, ar in WEEKDAYS %}{{ (ar if lang()=='ar' else en) if wd == v }}{% endfor %}
+          {%- elif fl.type == 'direction' -%}<span class="badge b-{{ v }}">{{ t('cash_in') if v == 'in' else t('cash_out') }}</span>
+          {%- elif fl.type == 'revenue_type' -%}{% for x in refs.revenue_types %}{{ (x.name_ar or x.name_en if lang()=='ar' else x.name_en) if x.id == v }}{% endfor %}
+          {%- elif fl.type == 'cost_category' -%}{% for x in refs.cost_categories %}{{ (x.name_ar or x.name_en if lang()=='ar' else x.name_en) if x.id == v }}{% endfor %}
+          {%- elif fl.type == 'select' -%}{% for o in fl.options %}{{ (o[2] if lang()=='ar' else o[1]) if o[0] == v }}{% endfor %}
+          {%- else -%}{{ v if v is not none else '' }}{%- endif -%}
+        </td>
+      {% endif %}{% endfor %}
+      <td><span class="badge b-{{ r.status }}">{{ t('status_' + r.status) }}</span></td>
+      <td class="small muted">{{ r.created_by or '' }}{% if r.approved_by %}<br>✓ {{ r.approved_by }}{% endif %}</td>
+      <td>
+        <div class="row-actions">
+          {% if can_s(key, 'edit') %}<a class="btn sm sec" href="{{ url_for('table_edit', key=key, rid=r.id) }}">{{ t('edit') }}</a>{% endif %}
+          {% if r.status in ('draft', 'rejected') and (can_s(key, 'enter') or can_s(key, 'edit')) %}
+            <form method="post" action="{{ url_for('table_submit', key=key, rid=r.id) }}" style="display:inline">
+              <button class="btn sm">{{ t('submit_for_approval') }}</button></form>
+          {% endif %}
+          {% if r.status == 'submitted' and can_s(key, 'approve') and can_approve_any %}
+            <form method="post" action="{{ url_for('table_decide', key=key, rid=r.id, decision='approve') }}" style="display:inline">
+              <button class="btn sm">{{ t('approve') }}</button></form>
+            <form method="post" action="{{ url_for('table_decide', key=key, rid=r.id, decision='reject') }}" style="display:inline">
+              <button class="btn sm sec">{{ t('reject') }}</button></form>
+          {% endif %}
+          {% if can_s(key, 'delete') %}
+            <form method="post" action="{{ url_for('table_delete', key=key, rid=r.id) }}" style="display:inline"
+                  onsubmit="return confirm('{{ t('confirm_delete') }}')">
+              <button class="btn sm danger">{{ t('delete') }}</button></form>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="99" class="muted">{{ t('no_rows') }}</td></tr>
+  {% endfor %}
+  </tbody>
+  {% if rows %}
+  <tfoot>
+    <tr class="total">
+      <td colspan="99">
+        {% for c in CURRENCIES %}{% if totals[c] %}{{ t('total') }} {{ c }}: {{ totals[c] | money }} &nbsp;&nbsp;{% endif %}{% endfor %}
+      </td>
+    </tr>
+  </tfoot>
+  {% endif %}
+</table>
+</div>
+</div>
+{% endblock %}

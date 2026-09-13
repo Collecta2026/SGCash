@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Setup{% endblock %}
+{% block body %}
+<div style="max-width:520px;margin:4vh auto">
+  <div class="card">
+    <h1>First-run setup</h1>
+    <p class="sub">Create the administrator account and name the organisation. Everything else is configurable in the app afterwards.</p>
+    <form method="post">
+      <div class="field"><label>Organisation name</label><input type="text" name="org_name" value="Scientific Gate Co."></div>
+      <div class="field"><label>Administrator username</label><input type="text" name="username" value="admin" required></div>
+      <div class="field"><label>Password (minimum 6 characters)</label><input type="password" name="password" required></div>
+      <div class="field"><label>Default language</label>
+        <select name="lang"><option value="en">English</option><option value="ar">العربية</option></select>
+      </div>
+      <div class="field"><label><input type="checkbox" name="demo" value="1" style="width:auto"> Load a worked example so the forecast is populated</label></div>
+      <button class="btn" style="width:100%">Create and continue</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

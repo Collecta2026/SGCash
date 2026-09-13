@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}{{ stream_label(key) }}{% endblock %}
+{% block body %}
+<h1>{{ t('add') if mode == 'new' else t('edit') }} — {{ stream_label(key) }}</h1>
+<p class="sub">
+  {% if mode != 'new' %}<span class="badge b-{{ row.status }}">{{ t('status_' + row.status) }}</span>
+  {{ t('entered_by') }} {{ row.created_by or '—' }}{% endif %}
+</p>
+
+<form method="post">
+<div class="card">
+  <div class="grid g3">
+  {% for fl in spec.fields %}
+    <div class="field {{ 'bad' if errors.get(fl.name) }}" {% if fl.type == 'textarea' %}style="grid-column:1/-1"{% endif %}>
+      <label>{{ field_label(fl) }}{% if fl.required %} *{% endif %}</label>
+      {%- set v = row[fl.name] -%}
+      {%- if fl.type == 'textarea' -%}
+        <textarea name="{{ fl.name }}">{{ v or '' }}</textarea>
+      {%- elif fl.type == 'date' -%}
+        <input type="date" name="{{ fl.name }}" value="{{ v.isoformat() if v else '' }}">
+      {%- elif fl.type in ('money',) -%}
+        <input type="number" step="0.01" min="0" name="{{ fl.name }}" value="{{ v if v is not none else '' }}">
+      {%- elif fl.type == 'int' -%}
+        <input type="number" step="1" name="{{ fl.name }}" value="{{ v if v is not none else '' }}"
+               {% if fl.min is defined %}min="{{ fl.min }}"{% endif %}{% if fl.max is defined %}max="{{ fl.max }}"{% endif %}>
+      {%- elif fl.type == 'pct' -%}
+        <input type="number" step="1" min="0" max="100" name="{{ fl.name }}" value="{{ v if v is not none else 100 }}">
+      {%- elif fl.type == 'currency' -%}
+        <select name="{{ fl.name }}">{% for c in CURRENCIES %}<option value="{{ c }}" {{ 'selected' if v == c }}>{{ c }}</option>{% endfor %}</select>
+      {%- elif fl.type == 'weekday' -%}
+        <select name="{{ fl.name }}">{% for wd, en, ar in WEEKDAYS %}<option value="{{ wd }}" {{ 'selected' if v == wd }}>{{ ar if lang()=='ar' else en }}</option>{% endfor %}</select>
+      {%- elif fl.type == 'direction' -%}
+        <select name="{{ fl.name }}">
+          <option value="out" {{ 'selected' if v != 'in' }}>{{ t('cash_out') }}</option>
+          <option value="in" {{ 'selected' if v == 'in' }}>{{ t('cash_in') }}</option></select>
+      {%- elif fl.type == 'select' -%}
+        <select name="{{ fl.name }}">{% for o in fl.options %}<option value="{{ o[0] }}" {{ 'selected' if v == o[0] }}>{{ o[2] if lang()=='ar' else o[1] }}</option>{% endfor %}</select>
+      {%- elif fl.type == 'revenue_type' -%}
+        <select name="{{ fl.name }}"><option value="">{{ t('none') }}</option>
+          {% for x in refs.revenue_types %}<option value="{{ x.id }}" {{ 'selected' if v == x.id }}>{{ x.name_ar or x.name_en if lang()=='ar' else x.name_en }}</option>{% endfor %}</select>
+      {%- elif fl.type == 'cost_category' -%}
+        <select name="{{ fl.name }}"><option value="">{{ t('none') }}</option>
+          {% for x in refs.cost_categories %}<option value="{{ x.id }}" {{ 'selected' if v == x.id }}>{{ x.name_ar or x.name_en if lang()=='ar' else x.name_en }}</option>{% endfor %}</select>
+      {%- else -%}
+        <input type="text" name="{{ fl.name }}" value="{{ v or '' }}">
+      {%- endif -%}
+      {% if errors.get(fl.name) %}<div class="err">{{ t(errors[fl.name]) }}</div>{% endif %}
+    </div>
+  {% endfor %}
+  </div>
+
+  <div class="row-actions" style="margin-top:10px">
+    <button class="btn" name="and_submit" value="0">{{ t('save') }}</button>
+    {% if mode == 'new' %}<button class="btn sec" name="and_submit" value="1">{{ t('save') }} + {{ t('submit_for_approval') }}</button>{% endif %}
+    <a class="btn sec" href="{{ url_for('table_list', key=key) }}">{{ t('cancel') }}</a>
+  </div>
+</div>
+</form>
+{% endblock %}

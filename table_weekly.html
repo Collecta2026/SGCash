@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}{{ stream_label(key) }} — {{ t('weekly_planner') }}{% endblock %}
+{% block body %}
+<h1>{{ stream_label(key) }} — {{ t('weekly_planner') }}</h1>
+<p class="sub">{{ t('planner_intro') }}</p>
+
+{% set cols = spec.fields | selectattr('type', 'ne', 'textarea') | list %}
+{% set shown = cols | rejectattr('name', 'eq', 'currency') | rejectattr('name', 'eq', 'amount') | list %}
+
+<div class="toolbar noprint">
+  <a class="btn sec" href="{{ url_for('table_list', key=key) }}">{{ t('list_view') }}</a>
+  {% if can_s(key, 'enter') %}
+    <a class="btn" href="{{ url_for('table_new', key=key) }}">+ {{ t('add') }}</a>
+  {% else %}
+    <a class="btn off" title="{{ why_s(key, 'enter') }}">+ {{ t('add') }}</a>
+  {% endif %}
+  <button class="btn sec" onclick="window.print()">🖨 {{ t('print') }}</button>
+</div>
+
+{% if groups %}
+<div class="card">
+  <h2>{{ t('total') }}</h2>
+  <div class="scroll">
+  <table class="tight">
+    <thead><tr><th>{{ t('collection_type') if key == 'collections' else t('type') }}</th>
+      <th class="num">EGP</th><th class="num">USD</th></tr></thead>
+    <tbody>
+    {% for g in groups %}{% set gt = plan.group_totals.get(g[0]) %}
+      <tr><td>{{ g[2] if lang() == 'ar' else g[1] }}</td>
+        <td class="num">{{ (gt.EGP if gt else 0) | money0 }}</td>
+        <td class="num">{{ (gt.USD if gt else 0) | money0 }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="total"><td>{{ t('total') }}</td>
+        <td class="num">{{ plan.grand.EGP | money0 }}</td>
+        <td class="num">{{ plan.grand.USD | money0 }}</td></tr>
+      <tr class="total"><td>{{ t('egp_equivalent') }}</td>
+        <td class="num" colspan="2">{{ plan.grand_eqv | money0 }}</td></tr>
+    </tfoot>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+{% set any_rows = plan.cells | selectattr('rows') | list %}
+{% for cell in plan.cells %}
+  {% if cell.rows %}
+  <div class="card">
+    <h2>{{ cell.week.label }}</h2>
+    <p class="sub" style="margin-bottom:8px">
+      {% for c in CURRENCIES %}{% if cell.totals[c] %}{{ c }} {{ cell.totals[c] | money }} &nbsp;{% endif %}{% endfor %}
+      · {{ t('egp_equivalent') }} {{ cell.eqv | money0 }} · {{ cell.rows | length }} {{ t('entries') | lower }}
+    </p>
+    <div class="scroll">
+    <table class="tight">
+      <thead><tr>
+        <th>{{ t('date') }}</th>
+        {% for fl in shown %}{% if fl.name != 'due_date' %}
+          <th class="{{ 'num' if fl.type in ('money','int','pct') }}">{{ field_label(fl) }}</th>
+        {% endif %}{% endfor %}
+        <th class="num">{{ t('amount') }}</th><th>{{ t('currency') }}</th>
+        <th>{{ t('status') }}</th><th class="noprint">{{ t('actions') }}</th>
+      </tr></thead>
+      <tbody>
+      {% for item in cell.rows %}{% set r = item.row %}
+        <tr>
+          <td class="nowrap">{{ item.date | d }}</td>
+          {% for fl in shown %}{% if fl.name != 'due_date' %}
+            {% set val = r[fl.name] %}
+            <td class="{{ 'num' if fl.type in ('money','int','pct') }}">
+              {%- if fl.type == 'money' -%}{{ val | money0 }}
+              {%- elif fl.type == 'date' -%}{{ val | d }}
+              {%- elif fl.type == 'pct' -%}{{ val }}%
+              {%- elif fl.type == 'select' -%}
+                {%- for o in fl.options %}{% if o[0] == val %}<span class="badge {{ 'b-in' if spec.direction == 'in' else 'b-out' }}">{{ o[2] if lang()=='ar' else o[1] }}</span>{% endif %}{% endfor -%}
+              {%- elif fl.type == 'revenue_type' -%}{% for x in refs.revenue_types %}{{ (x.name_ar or x.name_en if lang()=='ar' else x.name_en) if x.id == val }}{% endfor %}
+              {%- elif fl.type == 'cost_category' -%}{% for x in refs.cost_categories %}{{ (x.name_ar or x.name_en if lang()=='ar' else x.name_en) if x.id == val }}{% endfor %}
+              {%- else -%}{{ val if val is not none else '' }}{%- endif -%}
+            </td>
+          {% endif %}{% endfor %}
+          <td class="num b">{{ r.amount | money }}</td>
+          <td>{{ r.currency }}</td>
+          <td><span class="badge b-{{ r.status }}">{{ t('status_' + r.status) }}</span></td>
+          <td class="noprint">
+            {% if can_s(key, 'edit') %}
+              <a class="btn sm sec" href="{{ url_for('table_edit', key=key, rid=r.id) }}">{{ t('edit') }}</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+      {% if groups %}
+      <tfoot>
+        {% for g in groups %}{% set gt = cell.groups.get(g[0]) %}
+          {% if gt %}
+          <tr><td colspan="{{ shown | length }}" class="right small muted">
+              {{ g[2] if lang() == 'ar' else g[1] }}</td>
+            <td class="num small">{% for c in CURRENCIES %}{% if gt[c] %}{{ gt[c] | money0 }} {{ c }}<br>{% endif %}{% endfor %}</td>
+            <td colspan="3"></td></tr>
+          {% endif %}
+        {% endfor %}
+      </tfoot>
+      {% endif %}
+    </table>
+    </div>
+  </div>
+  {% endif %}
+{% endfor %}
+
+{% if not any_rows %}
+  <div class="card"><p class="muted">{{ t('no_rows') }}</p></div>
+{% endif %}
+{% endblock %}

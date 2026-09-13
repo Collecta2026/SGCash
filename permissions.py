@@ -9,28 +9,37 @@ Two rules are enforced in code and cannot be granted away:
   * nobody approves a row they entered themselves;
   * the admin console belongs to the System Administrator alone.
 
-Menus do not hide what a role cannot do — they dim it and say why, so
-people can see the shape of the system and ask for access.
+A menu shows a user exactly what the matrix permits them and nothing
+else: no dimmed entries, no dead links, no view of a system they have no
+part in.
 """
 from models import db, RolePermission, get_setting, set_setting
 from streams import STREAM_ORDER, STREAMS
 
 ROLES = [
-    ("admin", "System Administrator", "مدير النظام"),
+    ("super_admin", "Super Administrator", "المدير العام للنظام"),
+    ("admin", "Administrator", "مدير النظام"),
     ("md", "Managing Director", "العضو المنتدب"),
     ("cfo", "Chief Financial Officer", "المدير المالي"),
-    ("account_manager", "Finance Manager", "المدير المالي التنفيذي"),
-    ("credit_control", "Credit Control", "متابعة التحصيل"),
+    ("finance_manager", "Finance Manager", "مدير الشؤون المالية"),
+    ("credit_control", "Credit Controller", "متابعة التحصيل"),
     ("sales_admin", "Sales Administrator", "إدارة المبيعات"),
-    ("viewer", "Viewer (read only)", "مشاهدة فقط"),
 ]
+
+#: Roles a user row may still carry from an earlier version, and what they
+#: become. Anything else is deactivated rather than silently given access.
+ROLE_MIGRATIONS = {
+    "account_manager": "finance_manager",
+    "fm": "finance_manager",
+    "accountant": "finance_manager",
+    "treasury": "credit_control",
+    "data_entry": "credit_control",
+}
 ROLE_KEYS = [r[0] for r in ROLES]
 ROLE_LABELS = {r[0]: r[1] for r in ROLES}
 ROLE_LABELS_AR = {r[0]: r[2] for r in ROLES}
 
-#: Roles that exist only to key in their own figures. For these the menu
-#: HIDES everything they cannot use rather than dimming it — they should not
-#: see the shape of a system they have no part in.
+#: Roles that exist only to key in their own figures.
 ENTRY_ONLY_ROLES = {"credit_control", "sales_admin"}
 
 ACTIONS = [
@@ -53,7 +62,6 @@ CORE_CAPS = [
     ("opening_edit", "Edit opening balances", "تعديل الرصيد الافتتاحي"),
     ("imports", "Upload data files", "رفع ملفات البيانات"),
     ("exports", "Export & print reports", "تصدير وطباعة التقارير"),
-    ("approvals", "Approvals queue", "قائمة الاعتمادات"),
     ("week_signoff", "Confirm the weekly cash flow", "اعتماد التدفق الأسبوعي"),
     ("audit_report", "Audit trail & completeness", "سجل المراجعة واكتمال البيانات"),
 ]
@@ -79,13 +87,13 @@ for _s in STREAM_ORDER:
 # Streams each role may work on, and with which actions. A role absent from
 # STREAM_GRANTS gets the blanket DEFAULT_STREAM_ACTIONS entry.
 DEFAULT_STREAM_ACTIONS = {
+    "super_admin":     ["view", "enter", "edit", "delete", "approve"],
     "admin":           ["view", "enter", "edit", "delete", "approve"],
     "md":              ["view", "enter", "edit", "approve"],
     "cfo":             ["view", "enter", "edit", "approve"],
-    "account_manager": ["view", "enter", "edit", "delete", "approve"],
+    "finance_manager": ["view", "enter", "edit", "delete", "approve"],
     "credit_control":  [],            # only the grants below
     "sales_admin":     [],
-    "viewer":          ["view"],
 }
 
 #: Narrower grants that override the blanket list, per role and stream.
@@ -98,33 +106,57 @@ STREAM_GRANTS = {
 }
 
 DEFAULT_CORE = {
-    "admin": CORE_CAP_KEYS,
+    "super_admin": CORE_CAP_KEYS,
+    # The Administrator runs the system day to day but does not rewrite the
+    # scheme of delegation or the financial settings.
+    "admin": [c for c in CORE_CAP_KEYS if c not in ("access_control", "settings")],
     "md": ["dashboard", "forecast", "reports", "trend", "banks_view", "exports",
-           "approvals", "audit_report"],
+           "audit_report"],
     "cfo": ["dashboard", "forecast", "reports", "trend", "banks_view", "banks_edit",
-            "opening_edit", "imports", "exports", "approvals", "week_signoff",
-            "audit_report"],
-    "account_manager": ["dashboard", "forecast", "reports", "trend", "banks_view",
+            "opening_edit", "imports", "exports", "week_signoff", "audit_report"],
+    "finance_manager": ["dashboard", "forecast", "reports", "trend", "banks_view",
                         "banks_edit", "opening_edit", "imports", "exports",
-                        "approvals", "week_signoff", "audit_report"],
+                        "week_signoff", "audit_report"],
     # No core capabilities at all: no dashboard, no forecast, no cash position,
     # no reports. They land straight on the table they maintain.
     "credit_control": [],
     "sales_admin": [],
-    "viewer": ["dashboard", "forecast", "reports", "banks_view"],
 }
 
 #: Roles that may decide items in the approvals queue (editable in the console).
-DEFAULT_APPROVERS = ["admin", "cfo", "md", "account_manager"]
+DEFAULT_APPROVERS = ["super_admin", "admin", "cfo", "md", "finance_manager"]
 
 #: Who receives the weekly cash review once a week is confirmed.
 DEFAULT_REVIEW_RECIPIENTS = ["md", "cfo"]
 
 #: Who gets the "please enter next week's figures" request.
-DEFAULT_REQUEST_RECIPIENTS = ["credit_control", "sales_admin", "account_manager"]
+DEFAULT_REQUEST_RECIPIENTS = ["credit_control", "sales_admin", "finance_manager"]
 
 OPEN_ENDPOINTS = {"login", "logout", "setup", "static", "set_lang", "healthz",
                   "brand_logo", "run_notices"}
+
+
+def migrate_roles():
+    """Bring user rows from an earlier role list onto the current one."""
+    from models import User, db as _db
+    changed = 0
+    try:
+        for u in User.query.all():
+            if u.role in ROLE_KEYS:
+                continue
+            if u.role == "admin":
+                continue
+            new = ROLE_MIGRATIONS.get(u.role)
+            if new:
+                u.role = new
+            else:
+                u.role, u.active = "credit_control", False
+            changed += 1
+        if changed:
+            _db.session.commit()
+    except Exception:
+        _db.session.rollback()
+    return changed
 
 
 # ============================================================
@@ -146,7 +178,7 @@ def seed_matrix(force=False):
     if not force and RolePermission.query.first() is not None:
         return
     for role in ROLE_KEYS:
-        allowed = set(CAP_KEYS) if role == "admin" else default_allowed(role)
+        allowed = set(CAP_KEYS) if role == "super_admin" else default_allowed(role)
         for cap in CAP_KEYS:
             row = db.session.get(RolePermission, (role, cap))
             if row is None:
@@ -162,12 +194,12 @@ def get_matrix():
         if rp.role in m and rp.cap in m[rp.role]:
             m[rp.role][rp.cap] = bool(rp.allowed)
     for c in CAP_KEYS:
-        m["admin"][c] = True
+        m["super_admin"][c] = True
     return m
 
 
 def set_permission(role, cap, allowed):
-    if role == "admin":
+    if role == "super_admin":
         return
     row = db.session.get(RolePermission, (role, cap))
     if row is None:
@@ -183,15 +215,21 @@ def role_key(user):
     return (user.role or "").lower()
 
 
+def is_super(user):
+    """The Super Administrator: the only seat that rewrites the rules."""
+    return role_key(user) == "super_admin"
+
+
 def is_admin(user):
-    return role_key(user) == "admin"
+    """Either administrator tier — both reach the admin console."""
+    return role_key(user) in ("super_admin", "admin")
 
 
 def has_perm(user, cap):
     if not user or not getattr(user, "is_authenticated", False):
         return False
     role = role_key(user)
-    if role == "admin":
+    if role == "super_admin":
         return True
     if not cap:
         return True
@@ -203,20 +241,14 @@ def can(user, stream_key, action):
     return has_perm(user, stream_cap(stream_key, action))
 
 
-def hides_menu(user):
-    """True when this role should not even see what it cannot use."""
-    return role_key(user) in ENTRY_ONLY_ROLES
-
-
 def visible_streams(user):
-    """Streams to put on the menu.
+    """The tables to put on the menu: exactly those the matrix permits."""
+    return [s for s in STREAM_ORDER if can(user, s, "view")]
 
-    Most roles see the full list, dimmed where they lack access. An
-    entry-only role sees only its own tables.
-    """
-    if hides_menu(user):
-        return [s for s in STREAM_ORDER if can(user, s, "view")]
-    return list(STREAM_ORDER)
+
+def visible_caps(user, caps):
+    """Filter a list of capability keys down to the ones this user holds."""
+    return [c for c in caps if has_perm(user, c)]
 
 
 def landing_stream(user):
@@ -270,7 +302,7 @@ def set_request_roles(roles):
 
 
 def can_approve_any(user):
-    if is_admin(user):
+    if is_super(user):
         return True
     if role_key(user) not in get_approver_roles():
         return False
@@ -293,7 +325,7 @@ def streams_for_role(role):
 
 
 def _matrix_allows(role, cap):
-    if role == "admin":
+    if role == "super_admin":
         return True
     row = db.session.get(RolePermission, (role, cap))
     return bool(row and row.allowed)

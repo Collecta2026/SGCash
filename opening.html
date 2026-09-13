@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% set active = 'opening' %}
+{% block title %}{{ t('opening_balances') }}{% endblock %}
+{% block body %}
+<h1>{{ t('opening_balances') }}</h1>
+<p class="sub">{{ t('opening_help') }}</p>
+<div class="card">
+<div class="scroll">
+<table class="fc tight">
+  <thead><tr>
+    <th>{{ t('week') }}</th>
+    {% for c in CURRENCIES %}
+      <th class="num">{{ t('opening') }} {{ c }}</th><th class="num">{{ t('closing') }} {{ c }}</th><th>{{ c }}</th>
+    {% endfor %}
+  </tr></thead>
+  <tbody>
+  {% for r in f.rows %}
+  <tr>
+    <td class="nowrap">{{ r.week.label }}</td>
+    {% for c in CURRENCIES %}
+      <td class="num {{ 'ovr' if r.overridden[c] }}">
+        {{ r.opening[c] | money0 }}
+        <div class="small muted">{{ t('overridden') if r.overridden[c] else t('rolled_over') }}</div>
+      </td>
+      <td class="num {{ 'short' if r.closing[c] < 0 }}">{{ r.closing[c] | money0 }}</td>
+      <td>
+        {% if can('opening_edit') %}
+        <form method="post" style="display:flex;gap:4px">
+          <input type="hidden" name="week_id" value="{{ r.week.week_id }}">
+          <input type="hidden" name="currency" value="{{ c }}">
+          <input type="number" step="0.01" name="opening" value="{{ r.opening[c] }}" style="width:120px">
+          <button class="btn sm">{{ t('save') }}</button>
+          {% if r.overridden[c] %}<button class="btn sm sec" name="clear" value="1">↺</button>{% endif %}
+        </form>
+        {% endif %}
+      </td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+{% endblock %}

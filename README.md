@@ -1,6 +1,6 @@
 # Scientific Gate — Cash Flow Budgeting System
 
-Release 2. A bilingual (English / العربية) weekly cash flow forecasting and
+Release 3. A bilingual (English / العربية) weekly cash flow forecasting and
 budgeting system for Scientific Gate Co., built on the same architecture as
 Collecta: Flask + SQLAlchemy, Neon/Postgres in production, a role and
 capability matrix enforced server-side, an approvals queue and a full audit
@@ -72,7 +72,7 @@ Saturday is worked.
 
 ## Accuracy
 
-The engine is covered by 107 tests in `tests/`, each asserting figures computed
+The engine is covered by 118 tests in `tests/`, each asserting figures computed
 independently of the code under test:
 
 ```bash
@@ -99,14 +99,25 @@ payables schedules, shortfall and funding gap, data completeness, audit trail,
 and file uploads. Charts are inline SVG drawn on the server — no library, no
 CDN, and they print.
 
-**Roles** — three seats work the figures: Finance Manager, CFO and Managing
-Director, alongside the System Administrator. Credit Control and the Sales
-Administrator are data-entry seats: they reach the customer collections table
-(contract instalments, down payments, advances and installation instalments)
-and nothing else — no cash position, no forecast, no reports, no bank balances,
-not even the exchange rate. For them the menu hides what they cannot use; for
-every other role it is dimmed with the reason, so people can see the shape of
-the system and ask for access.
+**Roles** — seven: Super Administrator, Administrator, Managing Director, CFO,
+Finance Manager, Credit Controller and Sales Administrator. The three seats that
+work the figures are the Finance Manager, CFO and MD. Credit Control and the
+Sales Administrator are data-entry seats: they reach the customer collections
+table (contract instalments, down payments, advances and installation
+instalments) and nothing else — no cash position, no forecast, no reports, no
+bank balances, not even the exchange rate. Only the Super Administrator rewrites
+the scheme of delegation or the financial settings.
+
+**The menu shows exactly what the scheme of delegation permits**, for every
+role. Nothing is dimmed, because nothing a user cannot open is listed.
+
+**Available cash** leads the dashboard as a traffic light: green when cash on
+hand comfortably covers what is already committed to go out, orange when the
+headroom is 15% or less (configurable), red when a shortage is forecast.
+
+**Approvals** are exercised on the table rows themselves rather than through a
+separate queue page — entries still cannot reach the forecast unreviewed, and
+the count waiting is shown on the dashboard.
 
 **Admin console** — administrator only: the USD rate, every system setting,
 users, the scheme of delegation, revenue and cost categories, branding, mail

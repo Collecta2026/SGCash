@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}{{ t('login') }}{% endblock %}
+{% block body %}
+<div style="max-width:360px;margin:6vh auto">
+  <div class="card">
+    <h1>{{ t('login') }}</h1>
+    <p class="sub">{{ brand.org }} — {{ t('app_name') }}</p>
+    <form method="post">
+      <div class="field"><label>{{ t('username') }}</label><input type="text" name="username" autofocus required></div>
+      <div class="field"><label>{{ t('password') }}</label><input type="password" name="password" required></div>
+      <button class="btn" style="width:100%">{{ t('login') }}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

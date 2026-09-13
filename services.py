@@ -56,6 +56,7 @@ DEFAULTS = {
     "trend_project": "6",
     "trend_method": "linear",     # linear | average
     "notify_days_before": "3",
+    "amber_headroom_pct": "15",
     "smtp_port": "587",
     "smtp_tls": "1",
     "notices_token": "",
@@ -949,6 +950,59 @@ def cash_position_strip(back=1, ahead=3, include_pending=None):
             "total_gap_eqv": sum((r["gap_eqv"] for r in rows), Decimal("0"))}
 
 
+def cash_health(weeks_n=None):
+    """Is there enough cash for what is already committed to go out?
+
+    Three states, in the order they are tested:
+
+    red    — a shortage is forecast: a closing balance goes below zero
+             somewhere in the window, or the cash on hand does not cover the
+             committed outflow at all.
+    amber  — the cash on hand clears the committed outflow by no more than
+             the configured headroom (15% by default).
+    green  — comfortable.
+
+    "Available cash" is the money actually in the bank now, not a projected
+    closing balance, because that is the figure a shortage is met from.
+    """
+    n = weeks_n or setting_int("dashboard_weeks") or 6
+    strip = cash_position_strip(back=0, ahead=max(1, n - 1))
+    rate = strip["fx"]
+    rows = strip["rows"]
+
+    available = egp_equivalent(rows[0]["opening"], rate) if rows else Decimal("0")
+    committed_out = sum((r["outflow_eqv"] for r in rows), Decimal("0"))
+    expected_in = sum((r["inflow_eqv"] for r in rows), Decimal("0"))
+
+    headroom = available - committed_out
+    pct = (headroom / committed_out * 100) if committed_out > 0 else None
+    threshold = setting_dec("amber_headroom_pct")
+
+    shortage = next((r for r in rows if any(r["closing"][c] < 0 for c in CURRENCIES)), None)
+    below_buffer = next((r for r in rows if r["gap_eqv"] < 0), None)
+
+    if shortage is not None or (committed_out > 0 and available < committed_out):
+        state = "red"
+    elif pct is not None and pct <= threshold:
+        state = "amber"
+    elif below_buffer is not None:
+        state = "amber"
+    else:
+        state = "green"
+
+    return {
+        "state": state, "available": available, "available_by": rows[0]["opening"] if rows else {},
+        "committed_out": committed_out, "expected_in": expected_in,
+        "headroom": headroom, "headroom_pct": pct, "threshold": threshold,
+        "weeks": len(rows), "fx": rate,
+        "shortage_week": shortage["week"] if shortage else None,
+        "shortage_amount": (min(shortage["closing"][c] for c in CURRENCIES)
+                            if shortage else None),
+        "buffer_week": below_buffer["week"] if below_buffer else None,
+        "strip": strip,
+    }
+
+
 # ============================================================
 # Data completeness — which tables are missing for which weeks
 # ============================================================
@@ -1154,6 +1208,8 @@ def ensure_schema():
             "audit_log": [("actor_role", "VARCHAR(40)"), ("stream", "VARCHAR(40)"),
                           ("row_id", "INTEGER")],
         }
+        import permissions as _perms
+        _perms.migrate_roles()
         for tbl, cols in wanted.items():
             if tbl not in tables:
                 continue

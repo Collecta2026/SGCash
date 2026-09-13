@@ -54,7 +54,8 @@ def initialise(username="admin", password="", org=None, lang="en", demo=False):
     seed_reference()
 
     if User.query.filter_by(username=username).first() is None:
-        u = User(username=username, full_name="System Administrator", role="admin", lang=lang)
+        u = User(username=username, full_name="Super Administrator",
+                 role="super_admin", lang=lang)
         u.set_password(password or "changeme123")
         db.session.add(u)
         db.session.commit()

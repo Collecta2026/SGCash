@@ -262,12 +262,6 @@ def create_app(config=None):
     @app.context_processor
     def _inject():
         auth = current_user.is_authenticated
-        pending = 0
-        if auth and perms.can_approve_any(current_user):
-            try:
-                pending = Approval.query.filter_by(status="pending").count()
-            except Exception:
-                pending = 0
         return dict(
             brand=svc.get_brand(), app_version=svc.VERSION, fx=svc.fx_rate(),
             can=(lambda c: perms.has_perm(current_user, c)) if auth else (lambda c: False),
@@ -277,8 +271,8 @@ def create_app(config=None):
                                                  i18n.lang())) if auth else (lambda s, a: ""),
             is_admin=(perms.is_admin(current_user) if auth else False),
             my_streams=(perms.visible_streams(current_user) if auth else []),
-            hide_menu=(perms.hides_menu(current_user) if auth else False),
-            pending_approvals=pending,
+            my_caps=(perms.visible_caps(current_user, perms.CAP_KEYS) if auth else []),
+            is_super=(perms.is_super(current_user) if auth else False),
             can_approve_any=(perms.can_approve_any(current_user) if auth else False),
             ROLE_LABEL=(perms.ROLE_LABELS_AR if i18n.lang() == "ar" else perms.ROLE_LABELS),
         )
@@ -407,9 +401,12 @@ def create_app(config=None):
         dash = svc.dashboard(n)
         strip = svc.cash_position_strip(back=1, ahead=3)
         comp = svc.completeness()
+        health = svc.cash_health(n)
         signoff = svc.get_signoff(svc.current_week_id())
+        pending = _pending_count()
         return render_template("dashboard.html", dash=dash, n=n, strip=strip,
-                               comp=comp, signoff=signoff)
+                               comp=comp, health=health, signoff=signoff,
+                               pending=pending)
 
     @app.route("/forecast")
     @login_required
@@ -638,7 +635,7 @@ def create_app(config=None):
                (row.created_by == who())
         if mine and not perms.is_admin(current_user):
             flash(i18n.t("no_self_approve"), "danger")
-            return redirect(request.referrer or url_for("approvals"))
+            return redirect(request.referrer or url_for("table_list", key=key))
         row.status = ST_APPROVED if decision == "approve" else ST_REJECTED
         row.reviewed_by = who()
         row.reviewed_at = datetime.now()
@@ -653,7 +650,7 @@ def create_app(config=None):
         db.session.commit()
         audit(f"{key}_{row.status}", rid, _summary(key, row), stream=key, row_id=rid)
         flash(i18n.t("approve" if decision == "approve" else "reject") + " ✓", "success")
-        return redirect(request.referrer or url_for("approvals"))
+        return redirect(request.referrer or url_for("table_list", key=key))
 
     @app.route("/table/<key>/<int:rid>/settle", methods=["POST"])
     @login_required
@@ -742,23 +739,6 @@ def create_app(config=None):
             flash(i18n.t("saved"), "success")
             return redirect(url_for("opening"))
         return render_template("opening.html", f=svc.build_forecast())
-
-    # =========================================================
-    # Approvals
-    # =========================================================
-    @app.route("/approvals")
-    @login_required
-    @require("approvals")
-    def approvals():
-        pending = Approval.query.filter_by(status="pending").order_by(Approval.id.desc()).all()
-        history = (Approval.query.filter(Approval.status != "pending")
-                   .order_by(Approval.id.desc()).limit(100).all())
-        rows = {}
-        for a in pending:
-            spec = STREAMS.get(a.stream)
-            if spec:
-                rows[a.id] = db.session.get(spec["model"], a.row_id)
-        return render_template("approvals.html", pending=pending, history=history, rows=rows)
 
     # =========================================================
     # Reports
@@ -950,13 +930,18 @@ def create_app(config=None):
     def admin():
         import notifications
         section = request.args.get("s") or "system"
+        if section in SUPER_ONLY_SECTIONS and not perms.is_super(current_user):
+            abort(403)
         if request.method == "POST":
+            if request.form.get("section") in SUPER_ONLY_SECTIONS and \
+                    not perms.is_super(current_user):
+                abort(403)
             _handle_admin_post(request.form, request.files)
             return redirect(url_for("admin", s=request.form.get("section") or section))
         keys = ["work_week", "week_start", "weekend_rule", "horizon_weeks",
                 "dashboard_weeks", "fx_rate", "min_buffer_EGP", "min_buffer_USD",
                 "org_name", "product_name", "default_lang", "forecast_start",
-                "trend_lookback", "trend_project", "trend_method",
+                "trend_lookback", "trend_project", "trend_method", "amber_headroom_pct",
                 "smtp_host", "smtp_port", "smtp_user", "smtp_from", "smtp_from_name",
                 "notify_days_before", "notices_token"]
         vals = {k: svc.setting(k) for k in keys}
@@ -987,7 +972,8 @@ def create_app(config=None):
             for k in ["work_week", "week_start", "weekend_rule", "horizon_weeks",
                       "dashboard_weeks", "fx_rate", "min_buffer_EGP", "min_buffer_USD",
                       "org_name", "product_name", "default_lang", "forecast_start",
-                      "trend_lookback", "trend_project", "trend_method"]:
+                      "trend_lookback", "trend_project", "trend_method",
+                      "amber_headroom_pct"]:
                 if k in form:
                     set_setting(k, (form.get(k) or "").strip())
             set_setting("include_pending", "1" if form.get("include_pending") == "on" else "0")
@@ -1088,9 +1074,9 @@ def create_app(config=None):
         elif act == "update":
             u = db.session.get(User, parse_int(form.get("id"))) or abort(404)
             new_role = form.get("role") or u.role
-            if u.role == "admin" and new_role != "admin" and \
-                    User.query.filter_by(role="admin").count() <= 1:
-                flash("You cannot remove the only administrator.", "danger")
+            if u.role == "super_admin" and new_role != "super_admin" and \
+                    User.query.filter_by(role="super_admin").count() <= 1:
+                flash("You cannot change the role of the only Super Administrator.", "danger")
                 return
             old = f"role={u.role}, email={u.email or '-'}"
             u.full_name = form.get("full_name") or u.full_name
@@ -1172,10 +1158,20 @@ ENDPOINT_CAP = {
     "banks": "banks_view",
     "bank_delete": "banks_edit",
     "opening": "forecast",
-    "approvals": "approvals",
     "week_confirm": "week_signoff",
     "week_reopen": "week_signoff",
 }
+
+
+SUPER_ONLY_SECTIONS = {"system", "delegation", "delegation_reset", "branding"}
+
+
+def _pending_count():
+    """Entries submitted and waiting for review, for the dashboard tile."""
+    try:
+        return Approval.query.filter_by(status="pending").count()
+    except Exception:
+        return 0
 
 
 def _spec_or_404(key):
