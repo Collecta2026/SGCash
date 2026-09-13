@@ -231,21 +231,30 @@ def test_data_entry_roles_may_not_approve_anything(app, role):
 
 
 @pytest.mark.parametrize("role", ["credit_control", "sales_admin"])
-def test_the_menu_hides_rather_than_dims_for_data_entry_roles(app, role):
+def test_the_menu_lists_only_the_one_table_a_data_entry_role_owns(app, role):
     u = _user(role)
-    assert perms.hides_menu(u) is True
     assert perms.visible_streams(u) == ["collections"]
     assert perms.landing_stream(u) == "collections"
+    assert perms.visible_caps(u, perms.CORE_CAP_KEYS) == []
 
 
-@pytest.mark.parametrize("role", ["md", "cfo", "account_manager"])
-def test_senior_roles_see_the_whole_menu_dimmed_not_hidden(app, role):
+@pytest.mark.parametrize("role", ["md", "cfo", "finance_manager"])
+def test_senior_roles_see_every_table_on_the_menu(app, role):
     u = _user(role)
-    assert perms.hides_menu(u) is False
     assert len(perms.visible_streams(u)) == len(perms.STREAM_ORDER)
 
 
-@pytest.mark.parametrize("role", ["md", "cfo", "account_manager"])
+def test_the_menu_never_lists_something_the_matrix_refuses(app):
+    """Whatever the role, every menu entry it is given must be usable."""
+    for role in perms.ROLE_KEYS:
+        u = _user(role)
+        for stream in perms.visible_streams(u):
+            assert perms.can(u, stream, "view"), f"{role} listed {stream} it cannot open"
+        for cap in perms.visible_caps(u, perms.CAP_KEYS):
+            assert perms.has_perm(u, cap), f"{role} listed {cap} it cannot use"
+
+
+@pytest.mark.parametrize("role", ["md", "cfo", "finance_manager"])
 def test_the_three_senior_roles_view_and_edit_the_data(app, role):
     """Finance Manager, CFO and MD are the seats that work the figures."""
     u = _user(role)
@@ -259,8 +268,45 @@ def test_the_three_senior_roles_view_and_edit_the_data(app, role):
         assert perms.can(u, stream, "edit")
 
 
-def test_the_finance_manager_seat_is_labelled_as_such(app):
-    assert perms.ROLE_LABELS["account_manager"] == "Finance Manager"
+def test_the_seven_roles_are_exactly_those_agreed(app):
+    assert [r[0] for r in perms.ROLES] == [
+        "super_admin", "admin", "md", "cfo", "finance_manager",
+        "credit_control", "sales_admin"]
+    assert perms.ROLE_LABELS["finance_manager"] == "Finance Manager"
+    assert "viewer" not in perms.ROLE_KEYS
+
+
+def test_only_the_super_administrator_rewrites_the_rules(app):
+    sup = _user("super_admin")
+    adm = _user("admin")
+    assert perms.is_super(sup) and perms.is_admin(sup)
+    assert perms.is_admin(adm) and not perms.is_super(adm)
+    # the console opens for both, the delegation matrix and settings for one
+    assert perms.has_perm(sup, "access_control") and perms.has_perm(sup, "settings")
+    assert not perms.has_perm(adm, "access_control")
+    assert not perms.has_perm(adm, "settings")
+    # and an Administrator still runs the system day to day
+    for cap in ("dashboard", "forecast", "reports", "imports", "audit_report"):
+        assert perms.has_perm(adm, cap), cap
+
+
+def test_old_role_names_are_migrated_not_left_stranded(app):
+    from models import User as U
+    for old in ("account_manager", "accountant", "treasury", "data_entry"):
+        u = U(username=f"old_{old}", role=old)
+        u.set_password("pw123456")
+        db.session.add(u)
+    stranded = U(username="old_viewer", role="viewer")
+    stranded.set_password("pw123456")
+    db.session.add(stranded)
+    db.session.commit()
+    perms.migrate_roles()
+    assert U.query.filter_by(username="old_account_manager").first().role == "finance_manager"
+    assert U.query.filter_by(username="old_accountant").first().role == "finance_manager"
+    assert U.query.filter_by(username="old_treasury").first().role == "credit_control"
+    # a role with no mapping is deactivated rather than silently given access
+    left = U.query.filter_by(username="old_viewer").first()
+    assert left.active is False
 
 
 def test_only_the_administrator_reaches_the_admin_console(app):
@@ -295,7 +341,7 @@ def test_data_entry_role_is_refused_every_page_but_its_own(app):
     _user("credit_control")
     client.post("/login", data={"username": "u_credit_control",
                                 "password": "pw123456"}, follow_redirects=True)
-    for path in ("/forecast", "/banks", "/opening", "/trend", "/approvals",
+    for path in ("/forecast", "/banks", "/opening", "/trend",
                  "/admin", "/reports?report=cashflow", "/reports?report=audit",
                  "/table/suppliers", "/table/bank_loans", "/table/cheques"):
         assert client.get(path).status_code == 403, path
@@ -317,20 +363,20 @@ def test_data_entry_dashboard_shows_no_cash_figures(app):
     assert "Customer Collections" in body
 
 
-def test_every_menu_entry_has_a_reason_when_dimmed(app):
-    u = User(username="v", role="viewer")
-    db.session.add(u)
-    db.session.commit()
-    reason = perms.dim_reason(u, "approvals", "en")
-    assert "Approvals queue" in reason and "Viewer" in reason
-    assert perms.dim_reason(u, "dashboard", "en") == ""      # granted: no reason
-    assert "صلاحية" in perms.dim_reason(u, "approvals", "ar")
+def test_a_refused_action_still_explains_itself(app):
+    """The menu no longer dims anything, but in-page buttons still say why
+    they are unavailable — in both languages."""
+    u = _user("credit_control")
+    reason = perms.dim_reason(u, "banks_view", "en")
+    assert "View bank balances" in reason and "Credit Controller" in reason
+    assert perms.dim_reason(u, "collections_enter", "en") == ""   # granted: no reason
+    assert "صلاحية" in perms.dim_reason(u, "banks_view", "ar")
 
 
 def test_review_and_request_recipients_are_configurable(app):
     assert perms.get_review_roles() == ["md", "cfo"]
-    perms.set_review_roles(["md", "cfo", "account_manager"])
-    assert "account_manager" in perms.get_review_roles()
+    perms.set_review_roles(["md", "cfo", "finance_manager"])
+    assert "finance_manager" in perms.get_review_roles()
     perms.set_review_roles(["nonsense"])
     assert perms.get_review_roles() == []
 
@@ -578,3 +624,179 @@ def test_axis_steps_are_round_numbers(app):
     assert lo == 0 and hi >= 47000
     lo, hi, _ = charts._scale(-3000, 8000)
     assert lo <= -3000 and hi >= 8000              # the scale always includes zero
+
+
+# ============================================================
+# Available cash: green, amber, red
+# ============================================================
+
+def test_cash_health_is_green_with_comfortable_headroom(app):
+    bank("EGP", 1000000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("100000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    h = svc.cash_health(6)
+    assert h["available"] == Decimal("1000000")
+    assert h["committed_out"] == Decimal("100000")
+    assert h["state"] == "green"
+
+
+def test_cash_health_turns_amber_within_the_headroom_threshold(app):
+    """1,100,000 available against 1,000,000 committed is 10% headroom,
+    inside the 15% threshold, so amber."""
+    set_setting("amber_headroom_pct", "15")
+    bank("EGP", 1100000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("1000000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    h = svc.cash_health(6)
+    assert h["headroom"] == Decimal("100000")
+    assert h["headroom_pct"] == Decimal("10")
+    assert h["state"] == "amber"
+
+
+def test_cash_health_stays_green_just_outside_the_threshold(app):
+    """1,200,000 against 1,000,000 is 20% headroom — clear of 15%."""
+    set_setting("amber_headroom_pct", "15")
+    bank("EGP", 1200000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("1000000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    h = svc.cash_health(6)
+    assert h["headroom_pct"] == Decimal("20")
+    assert h["state"] == "green"
+
+
+def test_cash_health_is_red_when_a_balance_goes_negative(app):
+    bank("EGP", 100000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("250000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    h = svc.cash_health(6)
+    assert h["state"] == "red"
+    assert h["shortage_week"] is not None
+    assert h["shortage_amount"] < 0
+
+
+def test_cash_health_is_red_when_cash_does_not_cover_commitments(app):
+    """Even without a negative week, cash that cannot meet what is already
+    committed is a shortage."""
+    bank("EGP", 900000)
+    for i in range(6):
+        add(CustomerCollection, customer=f"C{i}", amount=Decimal("200000"),
+            due_date=svc.forecast_start() + timedelta(days=7 * i + 1))
+        add(BankLoanInstalment, lender="Bank", amount=Decimal("200000"),
+            due_date=svc.forecast_start() + timedelta(days=7 * i + 2))
+    h = svc.cash_health(6)
+    assert h["committed_out"] == Decimal("1200000")
+    assert h["available"] == Decimal("900000")
+    assert h["state"] == "red"
+
+
+def test_cash_health_threshold_is_configurable(app):
+    bank("EGP", 1100000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("1000000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    set_setting("amber_headroom_pct", "5")
+    assert svc.cash_health(6)["state"] == "green"      # 10% clears a 5% threshold
+    set_setting("amber_headroom_pct", "25")
+    assert svc.cash_health(6)["state"] == "amber"      # and trips a 25% one
+
+
+def test_cash_health_is_green_when_nothing_is_committed(app):
+    bank("EGP", 5000)
+    h = svc.cash_health(6)
+    assert h["committed_out"] == Decimal("0")
+    assert h["headroom_pct"] is None
+    assert h["state"] == "green"
+
+
+def test_cash_health_counts_both_currencies_at_the_rate(app):
+    bank("EGP", 100000)
+    bank("USD", 10000)                      # 500,000 EGP at the test rate of 50
+    h = svc.cash_health(6)
+    assert h["available"] == Decimal("600000")
+
+
+# ============================================================
+# Available cash: green, amber, red
+# ============================================================
+
+def test_cash_health_is_green_with_comfortable_headroom(app):
+    bank("EGP", 1000000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("100000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    h = svc.cash_health(6)
+    assert h["available"] == Decimal("1000000")
+    assert h["committed_out"] == Decimal("100000")
+    assert h["state"] == "green"
+
+
+def test_cash_health_turns_amber_within_the_headroom_threshold(app):
+    """1,100,000 available against 1,000,000 committed is 10% headroom —
+    inside the 15% threshold, so amber."""
+    set_setting("amber_headroom_pct", "15")
+    bank("EGP", 1100000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("1000000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    h = svc.cash_health(6)
+    assert h["headroom"] == Decimal("100000")
+    assert h["headroom_pct"] == Decimal("10")
+    assert h["state"] == "amber"
+
+
+def test_cash_health_stays_green_just_outside_the_threshold(app):
+    """1,200,000 against 1,000,000 is 20% headroom — clear of 15%."""
+    set_setting("amber_headroom_pct", "15")
+    bank("EGP", 1200000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("1000000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    h = svc.cash_health(6)
+    assert h["headroom_pct"] == Decimal("20")
+    assert h["state"] == "green"
+
+
+def test_cash_health_is_red_when_a_balance_goes_negative(app):
+    bank("EGP", 100000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("250000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    h = svc.cash_health(6)
+    assert h["state"] == "red"
+    assert h["shortage_week"] is not None
+    assert h["shortage_amount"] < 0
+
+
+def test_cash_health_is_red_when_cash_does_not_cover_commitments(app):
+    """Even without a negative week, cash that cannot meet what is already
+    committed to go out is a shortage."""
+    bank("EGP", 900000)
+    for i in range(6):
+        add(CustomerCollection, customer=f"C{i}", amount=Decimal("200000"),
+            due_date=svc.forecast_start() + timedelta(days=7 * i + 1))
+        add(BankLoanInstalment, lender="Bank", amount=Decimal("200000"),
+            due_date=svc.forecast_start() + timedelta(days=7 * i + 2))
+    h = svc.cash_health(6)
+    assert h["committed_out"] == Decimal("1200000")
+    assert h["available"] == Decimal("900000")
+    assert h["state"] == "red"
+
+
+def test_cash_health_threshold_is_configurable(app):
+    bank("EGP", 1100000)
+    add(BankLoanInstalment, lender="Bank", amount=Decimal("1000000"),
+        due_date=svc.forecast_start() + timedelta(days=1))
+    set_setting("amber_headroom_pct", "5")
+    assert svc.cash_health(6)["state"] == "green"      # 10% clears a 5% threshold
+    set_setting("amber_headroom_pct", "25")
+    assert svc.cash_health(6)["state"] == "amber"      # and trips a 25% one
+
+
+def test_cash_health_is_green_when_nothing_is_committed(app):
+    bank("EGP", 5000)
+    h = svc.cash_health(6)
+    assert h["committed_out"] == Decimal("0")
+    assert h["headroom_pct"] is None
+    assert h["state"] == "green"
+
+
+def test_cash_health_counts_both_currencies_at_the_rate(app):
+    bank("EGP", 100000)
+    bank("USD", 10000)                      # 500,000 EGP at the test rate of 50
+    h = svc.cash_health(6)
+    assert h["available"] == Decimal("600000")

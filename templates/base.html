@@ -9,21 +9,17 @@
 </head>
 <body>
 
-{# A role that may only key in its own figures sees nothing else at all;
-   every other role sees the whole menu with what it lacks dimmed. #}
+{# The menu shows exactly what the scheme of delegation permits this user —
+   nothing is dimmed, because nothing they cannot use is listed at all. #}
 {% macro nav_link(endpoint, label, cap, active_key, args={}) %}
   {% if can(cap) %}
     <a href="{{ url_for(endpoint, **args) }}" class="{{ 'on' if active == active_key }}">{{ label }}</a>
-  {% elif not hide_menu %}
-    <a class="off" title="{{ why(cap) }}" aria-disabled="true">{{ label }}</a>
   {% endif %}
 {% endmacro %}
 
 {% macro stream_link(k) %}
   {% if can_s(k, 'view') %}
     <a href="{{ url_for('table_list', key=k) }}">{{ stream_label(k) }}</a>
-  {% elif not hide_menu %}
-    <a class="off" title="{{ why_s(k, 'view') }}" aria-disabled="true">{{ stream_label(k) }}</a>
   {% endif %}
 {% endmacro %}
 
@@ -32,7 +28,7 @@
   <div class="brand"><b>{{ brand.org }}</b><small>{{ t('app_name') }}</small></div>
   <div class="spacer"></div>
   {% if current_user.is_authenticated %}
-    {% if not hide_menu %}<span class="chip">{{ t('fx_rate') }} {{ fx | money }}</span>{% endif %}
+    {% if can('forecast') %}<span class="chip">{{ t('fx_rate') }} {{ fx | money }}</span>{% endif %}
     <span class="chip">{{ current_user.display }} · {{ ROLE_LABEL.get(current_user.role, current_user.role) }}</span>
   {% endif %}
   {% for code, native, _en in LANGS %}
@@ -63,32 +59,20 @@
   {{ nav_link('banks', t('banks'), 'banks_view', 'banks') }}
   {{ nav_link('opening', t('opening_balances'), 'forecast', 'opening') }}
 
-  {% if not hide_menu or can('reports') %}
+  {% set my_reports = REPORTS | selectattr('3', 'in', my_caps) | list %}
+  {% if my_reports %}
   <div class="dd">
     <span class="{{ 'on' if active == 'reports' }}">{{ t('reports') }} ▾</span>
     <div class="dd-menu">
-      {% for r in REPORTS %}
-        {% if can(r[3]) %}
-          {% if r[0] == 'completeness' %}<div class="sep"></div>{% endif %}
-          <a href="{{ url_for('reports', report=r[0]) }}">{{ report_label(r) }}</a>
-        {% elif not hide_menu %}
-          {% if r[0] == 'completeness' %}<div class="sep"></div>{% endif %}
-          <a class="off" title="{{ why(r[3]) }}" aria-disabled="true">{{ report_label(r) }}</a>
-        {% endif %}
+      {% for r in my_reports %}
+        {% if r[0] == 'completeness' %}<div class="sep"></div>{% endif %}
+        <a href="{{ url_for('reports', report=r[0]) }}">{{ report_label(r) }}</a>
       {% endfor %}
     </div>
   </div>
   {% endif %}
 
   {{ nav_link('trend', t('trend'), 'trend', 'trend') }}
-
-  {% if can('approvals') %}
-    <a href="{{ url_for('approvals') }}" class="{{ 'on' if active == 'approvals' }}">
-      {{ t('approvals') }}{% if pending_approvals %} <span class="badge b-submitted">{{ pending_approvals }}</span>{% endif %}
-    </a>
-  {% elif not hide_menu %}
-    <a class="off" title="{{ why('approvals') }}" aria-disabled="true">{{ t('approvals') }}</a>
-  {% endif %}
 
   {% if is_admin %}
     <a href="{{ url_for('admin') }}" class="{{ 'on' if active == 'admin' }}">⚙ {{ t('admin') }}</a>

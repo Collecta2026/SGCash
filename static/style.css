@@ -78,20 +78,17 @@ nav.main {
     box-shadow: 0 2px 6px rgba(16, 36, 54, .18);
 }
 nav.main a, nav.main .dd > span {
-    color: #ffffff; padding: 11px 13px; font-size: 13.5px; display: inline-block;
-    cursor: pointer; border-bottom: 3px solid transparent;
+    color: #ffffff; padding: 12px 15px; font-size: 14px; font-weight: 600;
+    letter-spacing: .2px; display: inline-block; cursor: pointer;
+    border-bottom: 3px solid transparent;
 }
 nav.main a:hover, nav.main .dd:hover > span {
-    background: rgba(255, 255, 255, .14); text-decoration: none; color: #fff;
+    background: rgba(255, 255, 255, .18); text-decoration: none; color: #fff;
 }
 nav.main a.on {
-    background: var(--bg); color: var(--brand-deep); font-weight: 600;
+    background: var(--bg); color: var(--brand-deep); font-weight: 700;
     border-bottom-color: var(--brand-bright);
 }
-nav.main a.off, .dd-menu a.off {
-    opacity: .45; cursor: not-allowed; text-decoration: none;
-}
-nav.main a.off:hover { background: transparent; }
 
 .dd { position: relative; }
 .dd-menu {
@@ -101,9 +98,11 @@ nav.main a.off:hover { background: transparent; }
     z-index: 70; padding: 6px 0;
 }
 .dd:hover .dd-menu { display: block; }
-.dd-menu a { display: block; color: var(--ink); padding: 8px 15px; font-size: 13px; }
+.dd-menu a {
+    display: block; color: var(--ink); padding: 9px 15px;
+    font-size: 13.5px; font-weight: 500;
+}
 .dd-menu a:hover { background: var(--brand-wash); text-decoration: none; color: var(--brand-deep); }
-.dd-menu a.off:hover { background: transparent; color: var(--ink); }
 .dd-menu .hdr {
     font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px;
     color: var(--muted); padding: 9px 15px 3px; font-weight: 600;
@@ -130,6 +129,39 @@ h3 { font-size: 13.5px; margin: 14px 0 6px; color: var(--ink); }
 .g4 { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 .split { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 14px; }
 @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+
+/* ---------- available cash: the traffic light ---------- */
+.health {
+    display: flex; flex-wrap: wrap; gap: 26px; align-items: center;
+    border-radius: var(--radius); padding: 18px 22px; margin-bottom: 14px;
+    border: 2px solid; box-shadow: var(--shadow);
+}
+.health .figure { min-width: 260px; }
+.health .lbl {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .8px; opacity: .85;
+}
+.health .amount {
+    font-size: 42px; font-weight: 700; line-height: 1.05; margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+.health .amount .ccy { font-size: 18px; font-weight: 600; }
+.health .note { font-size: 12.5px; margin-top: 4px; opacity: .9; }
+.health .verdict { flex: 1; min-width: 300px; }
+.health .state { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.health table.mini { width: auto; min-width: 300px; font-size: 12.5px; }
+.health table.mini td {
+    border: none; padding: 2px 0; background: transparent;
+}
+.health table.mini td.num { text-align: end; padding-inline-start: 26px; font-weight: 600; }
+
+.health.green { background: #e7f6ee; border-color: #7dc9a2; color: #0a5b3a; }
+.health.green .amount { color: #0a7d4f; }
+.health.amber { background: #fdf3e0; border-color: #e8b455; color: #7a4e00; }
+.health.amber .amount { color: #b06a00; }
+.health.red { background: #fdecea; border-color: #e08079; color: #8e2019; }
+.health.red .amount { color: var(--out); }
+.health .neg { color: inherit !important; }
+.health.red .neg { color: var(--out) !important; }
 
 /* ---------- the headline cash figure ---------- */
 .hero {
@@ -277,7 +309,8 @@ html[dir="rtl"] .fc td.ovr { box-shadow: inset -3px 0 0 var(--brand-bright); }
 /* tabs */
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 14px; }
 .tabs a {
-    padding: 8px 14px; font-size: 13px; color: var(--muted); border: 1px solid transparent;
+    padding: 8px 14px; font-size: 13px; color: var(--ink); font-weight: 500;
+    border: 1px solid transparent;
     border-bottom: none; border-radius: var(--radius) var(--radius) 0 0; margin-bottom: -2px;
 }
 .tabs a.on { background: #fff; color: var(--brand-deep); font-weight: 600; border-color: var(--line); border-bottom: 2px solid #fff; }

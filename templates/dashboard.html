@@ -4,6 +4,40 @@
 {% block body %}
 
 {% set cur = strip.current %}
+
+{# ---- available cash: green, amber or red ---- #}
+<div class="health {{ health.state }}">
+  <div class="figure">
+    <div class="lbl">{{ t('available_cash') }}</div>
+    <div class="amount">{{ health.available | money0 }} <span class="ccy">EGP</span></div>
+    <div class="note">
+      EGP {{ health.available_by.EGP | money0 }} · USD {{ health.available_by.USD | money0 }}
+    </div>
+  </div>
+  <div class="verdict">
+    <div class="state">
+      {%- if health.state == 'green' -%}{{ t('health_green') }}
+      {%- elif health.state == 'amber' -%}
+        {%- if health.headroom_pct is not none and health.headroom_pct <= health.threshold -%}
+          {{ t('health_amber', pct=(health.headroom_pct | pct)) }}
+        {%- else -%}{{ t('health_amber_buffer') }}{%- endif -%}
+      {%- else -%}
+        {%- if health.shortage_week -%}{{ t('health_red', week=health.shortage_week.label) }}
+        {%- else -%}{{ t('health_red_cover') }}{%- endif -%}
+      {%- endif -%}
+    </div>
+    <table class="mini">
+      <tr><td>{{ t('committed_out', n=health.weeks) }}</td>
+        <td class="num">{{ health.committed_out | money0 }}</td></tr>
+      <tr><td>{{ t('cash_in') }} ({{ health.weeks }})</td>
+        <td class="num">{{ health.expected_in | money0 }}</td></tr>
+      <tr><td>{{ t('headroom') }}</td>
+        <td class="num {{ health.headroom | neg }}">{{ health.headroom | money0 }}
+          {%- if health.headroom_pct is not none %} ({{ health.headroom_pct | pct }}){% endif %}</td></tr>
+    </table>
+  </div>
+</div>
+
 <div class="hero">
   <div>
     <div class="lbl">{{ t('cash_position_now') }}</div>
@@ -73,6 +107,13 @@
     <div class="note">{{ dash.lowest.EGP.week.short if dash.lowest.EGP.week }} ·
       USD <span class="{{ dash.lowest.USD.amount | neg }}">{{ dash.lowest.USD.amount | money0 }}</span></div>
   </div>
+  {% if can_approve_any and pending %}
+  <div class="kpi warn">
+    <div class="lbl">{{ t('awaiting_review') }}</div>
+    <div class="val">{{ pending }}</div>
+    <div class="note">{{ t('entries_submitted') }}</div>
+  </div>
+  {% endif %}
   <div class="kpi {{ 'warn' if comp.gap_count else 'ok' }}">
     <div class="lbl">{{ t('completeness') }}</div>
     <div class="val">{{ comp.gap_count }}</div>

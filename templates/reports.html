@@ -4,13 +4,9 @@
 {% block body %}
 
 <div class="tabs noprint">
-  {% for r in REPORTS %}
-    {% if can(r[3]) %}
-      <a href="{{ url_for('reports', report=r[0]) }}" class="{{ 'on' if report == r[0] }}">{{ report_label(r) }}</a>
-    {% else %}
-      <a class="off" title="{{ why(r[3]) }}">{{ report_label(r) }}</a>
-    {% endif %}
-  {% endfor %}
+  {% for r in REPORTS %}{% if can(r[3]) %}
+    <a href="{{ url_for('reports', report=r[0]) }}" class="{{ 'on' if report == r[0] }}">{{ report_label(r) }}</a>
+  {% endif %}{% endfor %}
 </div>
 
 {% for r in REPORTS %}{% if r[0] == report %}

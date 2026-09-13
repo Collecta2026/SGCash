@@ -3,17 +3,18 @@
 {% block title %}{{ t('admin') }}{% endblock %}
 {% block body %}
 <h1>{{ t('admin') }}</h1>
-<p class="sub">Everything configurable in one place. This page is visible to the
-  System Administrator only.</p>
+<p class="sub">Everything configurable in one place, for administrators only.
+  The financial settings, branding and the scheme of delegation belong to the
+  Super Administrator.</p>
 
-{% set sections = [('system', t('settings')), ('branding', 'Branding'),
-                   ('users', t('users')), ('delegation', t('delegation')),
-                   ('reference', t('reference')), ('email', t('notifications')),
-                   ('audit', t('audit_trail'))] %}
+{% set sections = [('system', t('settings'), true), ('branding', 'Branding', true),
+                   ('users', t('users'), false), ('delegation', t('delegation'), true),
+                   ('reference', t('reference'), false), ('email', t('notifications'), false),
+                   ('audit', t('audit_trail'), false)] %}
 <div class="tabs">
-  {% for key, label in sections %}
+  {% for key, label, super_only in sections %}{% if is_super or not super_only %}
     <a href="{{ url_for('admin', s=key) }}" class="{{ 'on' if section == key }}">{{ label }}</a>
-  {% endfor %}
+  {% endif %}{% endfor %}
 </div>
 
 {# ================= System settings ================= #}
@@ -30,6 +31,11 @@
       <input type="number" step="0.01" name="min_buffer_{{ c }}" value="{{ v['min_buffer_' + c] }}">
     </div>
     {% endfor %}
+    <div class="field"><label>Amber warning when headroom is below (%)</label>
+      <input type="number" step="0.1" min="0" max="100" name="amber_headroom_pct"
+             value="{{ v.amber_headroom_pct }}">
+      <div class="hint">The available-cash box turns orange when cash on hand clears
+        the committed outflow by this much or less, and red on a forecast shortage.</div></div>
     <div class="field"><label><input type="checkbox" name="include_pending" {{ 'checked' if v.include_pending }} style="width:auto"> {{ t('include_pending') }}</label></div>
     <div class="field"><label><input type="checkbox" name="apply_certainty" {{ 'checked' if v.apply_certainty }} style="width:auto"> {{ t('apply_certainty') }}</label></div>
   </div>
