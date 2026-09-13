@@ -800,3 +800,113 @@ def test_cash_health_counts_both_currencies_at_the_rate(app):
     bank("USD", 10000)                      # 500,000 EGP at the test rate of 50
     h = svc.cash_health(6)
     assert h["available"] == Decimal("600000")
+
+
+# ============================================================
+# Bank & cash balances on the dashboard
+# ============================================================
+
+def test_bank_balances_lists_every_account_with_its_egp_equivalent(app):
+    db.session.add_all([
+        BankAccount(name="NBE — current account", bank="National Bank of Egypt",
+                    currency="EGP", kind="bank", sort=10,
+                    balance=Decimal("1450000"), as_at=date(2026, 1, 4)),
+        BankAccount(name="NBE — USD account", bank="National Bank of Egypt",
+                    currency="USD", kind="bank", sort=20,
+                    balance=Decimal("42000"), as_at=date(2026, 1, 2)),
+        BankAccount(name="InstaPay", currency="EGP", kind="wallet", sort=50,
+                    balance=Decimal("86000"), as_at=date(2026, 1, 4)),
+    ])
+    db.session.commit()
+
+    b = svc.bank_balances()
+    assert [r["account"].name for r in b["rows"]] == [
+        "NBE — current account", "NBE — USD account", "InstaPay"]   # by sort
+    assert b["totals"]["EGP"] == Decimal("1536000")                 # 1,450,000 + 86,000
+    assert b["totals"]["USD"] == Decimal("42000")
+    # 1,536,000 + 42,000 x 50
+    assert b["eqv"] == Decimal("3636000")
+    usd = b["rows"][1]
+    assert usd["eqv"] == Decimal("2100000")
+    assert b["count"] == 3
+    assert b["oldest_as_at"] == date(2026, 1, 2)
+
+
+def test_bank_balances_excludes_accounts_kept_out_of_the_forecast(app):
+    db.session.add_all([
+        BankAccount(name="In", currency="EGP", balance=Decimal("100000"),
+                    as_at=date(2026, 1, 4), include_in_forecast=True),
+        BankAccount(name="Out", currency="EGP", balance=Decimal("900000"),
+                    as_at=date(2026, 1, 4), include_in_forecast=False),
+    ])
+    db.session.commit()
+
+    b = svc.bank_balances()
+    assert len(b["rows"]) == 2                       # both are shown
+    assert b["totals"]["EGP"] == Decimal("100000")   # only one is counted
+    assert b["count"] == 1
+    assert [r["account"].name for r in b["excluded"]] == ["Out"]
+    # the excluded row still carries its own figures
+    assert b["rows"][1]["balance"] == Decimal("900000")
+    assert b["rows"][1]["included"] is False
+
+
+def test_bank_balances_totals_match_the_forecast_opening(app):
+    bank("EGP", 100000)
+    bank("USD", 10000)
+    b = svc.bank_balances()
+    assert b["eqv"] == svc.cash_health(6)["available"]
+
+
+def test_standard_accounts_are_seeded_once_and_balances_are_never_reset(app):
+    import seed
+    seed.seed_accounts()
+    names = [a.name for a in BankAccount.query.order_by(BankAccount.sort).all()]
+    assert names == [n for n, _b, _c, _k, _s in seed.STANDARD_ACCOUNTS]
+    assert {a.currency for a in BankAccount.query.all()} == {"EGP", "USD"}
+    assert [a.kind for a in BankAccount.query.order_by(BankAccount.sort).all()][-1] == "cash"
+
+    nbe = BankAccount.query.filter_by(name="NBE — current account").one()
+    nbe.balance = Decimal("777000")
+    db.session.commit()
+
+    seed.seed_accounts()                               # running again is a no-op
+    assert BankAccount.query.count() == len(seed.STANDARD_ACCOUNTS)
+    assert BankAccount.query.filter_by(
+        name="NBE — current account").one().balance == Decimal("777000")
+
+
+def test_the_named_banks_and_wallets_are_all_present(app):
+    import seed
+    seed.seed_accounts()
+    blob = " ".join(a.name + " " + (a.bank or "") for a in BankAccount.query.all())
+    for wanted in ("NBE", "National Bank of Egypt", "CIB",
+                   "Commercial International Bank", "InstaPay", "Vodafone Cash"):
+        assert wanted in blob
+
+
+# ============================================================
+# The menu must be readable
+# ============================================================
+
+def _css():
+    import pathlib
+    return pathlib.Path(__file__).resolve().parent.parent.joinpath(
+        "static", "style.css").read_text()
+
+
+def test_dropdown_entries_win_over_the_white_nav_rule(app):
+    """`nav.main a` paints menu links white. The dropdown panel is white, so
+    its own rule has to be at least as specific or the entries vanish."""
+    css = _css()
+    assert "nav.main .dd-menu a" in css, (
+        "the dropdown rule is not qualified with nav.main — its links will be "
+        "white on a white panel")
+    i_nav = css.index("nav.main a, nav.main .dd > span")
+    i_menu = css.index("nav.main .dd-menu a")
+    assert i_menu > i_nav, "the dropdown rule must come after the white nav rule"
+
+
+def test_dropdown_opens_on_focus_as_well_as_hover(app):
+    css = _css()
+    assert ":focus-within .dd-menu" in css, "the menu cannot be opened without a mouse"

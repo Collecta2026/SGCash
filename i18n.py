@@ -120,6 +120,18 @@ T = {
     "balance": ("Balance", "الرصيد"),
     "as_at": ("As at", "كما في"),
     "include_in_forecast": ("In forecast", "ضمن التوقعات"),
+    "latest_balances": ("Latest recorded balances", "آخر أرصدة مسجلة"),
+    "account_type": ("Type", "النوع"),
+    "acct_bank": ("Bank", "بنك"),
+    "acct_wallet": ("Wallet", "محفظة"),
+    "acct_cash": ("Cash", "نقدية"),
+    "total_balances": ("Total", "الإجمالي"),
+    "excluded_from_forecast": ("excluded", "مستبعد"),
+    "balances_note": ("Balances as recorded on the bank & cash accounts page. "
+                      "Accounts marked excluded are not counted in the forecast.",
+                      "الأرصدة كما هي مسجلة في صفحة الحسابات البنكية والنقدية. "
+                      "الحسابات المستبعدة لا تدخل في التوقعات."),
+    "oldest_as_at": ("Oldest balance date", "أقدم تاريخ رصيد"),
     "overdraft_limit": ("Overdraft limit", "حد السحب على المكشوف"),
     "opening_help": ("The opening balance rolls forward from the previous week's closing "
                      "balance. Enter a figure here to pin a week to an actual bank balance.",

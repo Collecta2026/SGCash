@@ -9,7 +9,7 @@
 <div class="scroll">
 <table>
   <thead><tr>
-    <th>{{ t('account_name') }}</th><th>{{ t('bank_name') }}</th><th>{{ t('account_no') }}</th>
+    <th>{{ t('account_name') }}</th><th>{{ t('account_type') }}</th><th>{{ t('bank_name') }}</th><th>{{ t('account_no') }}</th>
     <th>{{ t('currency') }}</th><th class="num">{{ t('balance') }}</th><th class="num">{{ t('overdraft_limit') }}</th>
     <th>{{ t('as_at') }}</th><th>{{ t('include_in_forecast') }}</th><th>{{ t('actions') }}</th>
   </tr></thead>
@@ -19,6 +19,8 @@
     <form method="post">
     <input type="hidden" name="id" value="{{ b.id }}">
     <td><input type="text" name="name" value="{{ b.name }}" required></td>
+    <td><select name="kind">{% for k, en, ar in kinds %}<option value="{{ k }}" {{ 'selected' if (b.kind or 'bank') == k }}>{{ t('acct_' ~ k) }}</option>{% endfor %}</select>
+        <input type="hidden" name="sort" value="{{ b.sort or 100 }}"></td>
     <td><input type="text" name="bank" value="{{ b.bank or '' }}"></td>
     <td><input type="text" name="account_no" value="{{ b.account_no or '' }}"></td>
     <td><select name="currency">{% for c in CURRENCIES %}<option value="{{ c }}" {{ 'selected' if b.currency == c }}>{{ c }}</option>{% endfor %}</select></td>
@@ -32,12 +34,12 @@
     </form>
   </tr>
   {% if can('banks_edit') %}
-  <tr><td colspan="9" style="padding:0">
+  <tr><td colspan="10" style="padding:0">
     <form method="post" action="{{ url_for('bank_delete', rid=b.id) }}" onsubmit="return confirm('{{ t('confirm_delete') }}')">
       <button class="btn sm danger" style="margin:2px 0 8px">{{ t('delete') }} — {{ b.name }}</button></form>
   </td></tr>
   {% endif %}
-  {% else %}<tr><td colspan="9" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="10" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
   </tbody>
 </table>
 </div>
@@ -48,6 +50,7 @@
   <h2>{{ t('add') }}</h2>
   <form method="post"><div class="grid g4">
     <div class="field"><label>{{ t('account_name') }} *</label><input type="text" name="name" required></div>
+    <div class="field"><label>{{ t('account_type') }}</label><select name="kind">{% for k, en, ar in kinds %}<option value="{{ k }}">{{ t('acct_' ~ k) }}</option>{% endfor %}</select></div>
     <div class="field"><label>{{ t('bank_name') }}</label><input type="text" name="bank"></div>
     <div class="field"><label>{{ t('account_no') }}</label><input type="text" name="account_no"></div>
     <div class="field"><label>{{ t('currency') }}</label><select name="currency">{% for c in CURRENCIES %}<option>{{ c }}</option>{% endfor %}</select></div>

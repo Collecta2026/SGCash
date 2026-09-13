@@ -52,6 +52,7 @@ def initialise(username="admin", password="", org=None, lang="en", demo=False):
 
     perms.seed_matrix(force=True)
     seed_reference()
+    seed_accounts()
 
     if User.query.filter_by(username=username).first() is None:
         u = User(username=username, full_name="Super Administrator",
@@ -62,6 +63,30 @@ def initialise(username="admin", password="", org=None, lang="en", demo=False):
 
     if demo:
         seed_demo()
+    db.session.commit()
+
+
+#: The accounts Scientific Gate actually holds cash in. Seeded at zero so the
+#: client types in the real balances; the demo data fills them in.
+STANDARD_ACCOUNTS = [
+    ("NBE — current account", "National Bank of Egypt", "EGP", "bank", 10),
+    ("NBE — USD account", "National Bank of Egypt", "USD", "bank", 20),
+    ("CIB — current account", "Commercial International Bank", "EGP", "bank", 30),
+    ("CIB — USD account", "Commercial International Bank", "USD", "bank", 40),
+    ("InstaPay", "InstaPay", "EGP", "wallet", 50),
+    ("Vodafone Cash", "Vodafone Cash", "EGP", "wallet", 60),
+    ("Head office cash", "", "EGP", "cash", 70),
+]
+
+
+def seed_accounts():
+    """Create the standard accounts once, at zero. Never touches a balance."""
+    from datetime import date as _date
+    for name, bank, ccy, kind, sort in STANDARD_ACCOUNTS:
+        if BankAccount.query.filter_by(name=name).first() is None:
+            db.session.add(BankAccount(name=name, bank=bank or None, currency=ccy,
+                                       kind=kind, sort=sort, balance=Decimal("0"),
+                                       as_at=_date.today(), include_in_forecast=True))
     db.session.commit()
 
 
@@ -81,22 +106,30 @@ def seed_demo():
     from models import (CustomerCollection, BankLoanInstalment, SupplierInstalment,
                         ChequePayable, PettyCashReplenishment, FixedWeeklyCost,
                         FixedMonthlyCost, AdhocInflow)
-    if BankAccount.query.first() is not None:
+    if CustomerCollection.query.first() is not None:
         return
     today = date.today()
     rev = {r.code: r.id for r in RevenueType.query.all()}
     cost = {c.code: c.id for c in CostCategory.query.all()}
 
-    db.session.add_all([
-        BankAccount(name="CIB current account", bank="Commercial International Bank",
-                    account_no="100-2233-9", currency="EGP", balance=Decimal("2450000.00"),
-                    as_at=today, overdraft_limit=Decimal("1000000.00")),
-        BankAccount(name="CIB USD account", bank="Commercial International Bank",
-                    account_no="100-2233-USD", currency="USD", balance=Decimal("85000.00"),
-                    as_at=today),
-        BankAccount(name="Head office cash", bank="", currency="EGP",
-                    balance=Decimal("120000.00"), as_at=today),
-    ])
+    demo_balances = {
+        "NBE — current account": ("1450000.00", "2011-0099-4"),
+        "NBE — USD account": ("42000.00", "1011-0099-USD"),
+        "CIB — current account": ("2450000.00", "100-2233-9"),
+        "CIB — USD account": ("43000.00", "100-2233-USD"),
+        "InstaPay": ("86000.00", "0100-555-8842"),
+        "Vodafone Cash": ("34000.00", "0106-777-2190"),
+        "Head office cash": ("120000.00", ""),
+    }
+    for name, (amount, acc_no) in demo_balances.items():
+        acct = BankAccount.query.filter_by(name=name).first()
+        if acct is not None:
+            acct.balance = Decimal(amount)
+            acct.account_no = acc_no or None
+            acct.as_at = today
+            if name == "CIB — current account":
+                acct.overdraft_limit = Decimal("1000000.00")
+    db.session.commit()
 
     def mk(model, **kw):
         kw.setdefault("status", ST_APPROVED)

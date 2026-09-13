@@ -261,6 +261,42 @@ def bank_opening():
     return out
 
 
+ACCOUNT_KINDS = [("bank", "Bank", "بنك"),
+                 ("wallet", "Wallet", "محفظة"),
+                 ("cash", "Cash", "نقدية")]
+
+
+def bank_balances():
+    """Every account with its latest recorded balance, plus the totals.
+
+    `as_at` is the date the figure was struck, so a stale balance is
+    visible as a stale balance rather than quietly treated as today's.
+    """
+    rows = BankAccount.query.order_by(BankAccount.sort, BankAccount.currency,
+                                      BankAccount.name).all()
+    rate = fx_rate()
+    out, totals, counted = [], {c: Decimal("0") for c in CURRENCIES}, 0
+    oldest = None
+    for a in rows:
+        included = bool(a.include_in_forecast)
+        bal = D(a.balance)
+        out.append({
+            "account": a, "balance": bal, "currency": a.currency,
+            "eqv": bal * (rate if a.currency == "USD" else Decimal("1")),
+            "included": included, "as_at": a.as_at,
+            "kind": a.kind or "bank",
+        })
+        if included and a.currency in totals:
+            totals[a.currency] += bal
+            counted += 1
+            if a.as_at and (oldest is None or a.as_at < oldest):
+                oldest = a.as_at
+    return {"rows": out, "totals": totals, "count": counted,
+            "eqv": egp_equivalent(totals, rate), "fx": rate,
+            "oldest_as_at": oldest,
+            "excluded": [r for r in out if not r["included"]]}
+
+
 def opening_overrides():
     out = {}
     for o in OpeningOverride.query.all():
@@ -1202,6 +1238,7 @@ def ensure_schema():
                                      ("contract_ref", "VARCHAR(80)"),
                                      ("instalment_no", "INTEGER")],
             "customer_refunds": [("customer_no", "VARCHAR(40)")],
+            "bank_accounts": [("kind", "VARCHAR(10)"), ("sort", "INTEGER")],
             "supplier_instalments": [("supplier_no", "VARCHAR(40)"),
                                      ("payment_type", "VARCHAR(20)"),
                                      ("contract_ref", "VARCHAR(80)")],

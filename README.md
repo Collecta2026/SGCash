@@ -72,7 +72,7 @@ Saturday is worked.
 
 ## Accuracy
 
-The engine is covered by 118 tests in `tests/`, each asserting figures computed
+The engine is covered by 125 tests in `tests/`, each asserting figures computed
 independently of the code under test:
 
 ```bash
@@ -135,7 +135,28 @@ cash review goes automatically to the MD and CFO.
 **Uploads** — every table has an Excel template, and uploads are previewed row
 by row, with each rejection explained, before anything is written.
 
-## Still to come
+## Release 3 additions
 
-* **Release 3** — Render / AWS Pro deployment (the runbook and deployment files
-  are already in the repository), operating manual and user training guide.
+**Bank and cash balances lead the dashboard.** The first thing on the page is a
+table of every account — NBE and CIB in both currencies, InstaPay, Vodafone Cash
+and head office cash — with its type, its latest recorded balance, the EGP
+equivalent at the current rate and the date that balance was taken, then the EGP
+total, the USD total and the combined EGP equivalent. Accounts excluded from the
+forecast are still listed but not counted, and are marked as such. The standard
+accounts are created automatically on first run at zero; re-running the seed
+never touches a balance that has been entered.
+
+**The drop-down menus are readable.** The white `nav.main a` rule was winning on
+specificity over the drop-down rule, so the entries under Data Tables and
+Reports were being painted white on a white panel — present in the page, but
+invisible. Both menus also open on keyboard focus now, not hover alone, so they
+work on a tablet. Two tests guard the rule order, and a contrast check covers
+every menu entry in both languages.
+
+**Dates read correctly in Arabic.** Dates are wrapped so right-to-left text no
+longer reorders "13 Sep 2026" into "Sep 2026 13".
+
+**Deployment** — Render / AWS Pro runbook and deployment files are in the
+repository (`DEPLOY.md`, `render.yaml`, `Procfile`, `gunicorn.conf.py`).
+
+The suite now stands at 125 tests.

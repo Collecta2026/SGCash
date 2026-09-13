@@ -16,6 +16,7 @@ from flask import (Flask, render_template, request, redirect, url_for, flash,
                    abort, session, jsonify, Response)
 from flask_login import (LoginManager, login_user, logout_user, login_required,
                          current_user)
+from markupsafe import Markup
 from sqlalchemy import or_
 
 from models import (db, D, User, get_setting, set_setting, Approval, AuditLog,
@@ -228,12 +229,17 @@ def create_app(config=None):
         except (TypeError, ValueError):
             return "–"
 
+    def _isolate(s):
+        # A date read right-to-left comes out as "Sep 2026 13". <bdi> keeps the
+        # day, month and year in the order they were written, in either language.
+        return Markup("<bdi>%s</bdi>") % s
+
     @app.template_filter("d")
     def _d(v):
         if not v:
             return ""
         try:
-            return v.strftime("%d %b %Y")
+            return _isolate(v.strftime("%d %b %Y"))
         except AttributeError:
             return str(v)
 
@@ -242,7 +248,7 @@ def create_app(config=None):
         if not v:
             return ""
         try:
-            return v.strftime("%d %b %Y %H:%M")
+            return _isolate(v.strftime("%d %b %Y %H:%M"))
         except AttributeError:
             return str(v)
 
@@ -404,9 +410,10 @@ def create_app(config=None):
         health = svc.cash_health(n)
         signoff = svc.get_signoff(svc.current_week_id())
         pending = _pending_count()
+        banks = svc.bank_balances()
         return render_template("dashboard.html", dash=dash, n=n, strip=strip,
                                comp=comp, health=health, signoff=signoff,
-                               pending=pending)
+                               pending=pending, banks=banks)
 
     @app.route("/forecast")
     @login_required
@@ -690,6 +697,9 @@ def create_app(config=None):
             a.balance = svc.q2(parse_money(request.form.get("balance")) or 0)
             a.overdraft_limit = svc.q2(parse_money(request.form.get("overdraft_limit")) or 0)
             a.as_at = parse_date(request.form.get("as_at")) or date.today()
+            kind = (request.form.get("kind") or "bank").strip()
+            a.kind = kind if kind in {k for k, _e, _ar in svc.ACCOUNT_KINDS} else "bank"
+            a.sort = parse_int(request.form.get("sort")) or 100
             a.include_in_forecast = request.form.get("include_in_forecast") == "1"
             a.notes = (request.form.get("notes") or "").strip() or None
             a.updated_by = who()
@@ -699,10 +709,12 @@ def create_app(config=None):
             audit("bank_saved", a.id, f"{a.name} {a.currency} {a.balance}")
             flash(i18n.t("saved"), "success")
             return redirect(url_for("banks"))
-        rows = BankAccount.query.order_by(BankAccount.currency, BankAccount.name).all()
+        rows = BankAccount.query.order_by(BankAccount.sort, BankAccount.currency,
+                                          BankAccount.name).all()
         tot = svc.bank_opening()
         return render_template("banks.html", rows=rows, tot=tot,
-                               eqv=svc.egp_equivalent(tot))
+                               eqv=svc.egp_equivalent(tot),
+                               kinds=svc.ACCOUNT_KINDS)
 
     @app.route("/banks/<int:rid>/delete", methods=["POST"])
     @login_required

@@ -212,6 +212,8 @@ class BankAccount(db.Model):
     __tablename__ = "bank_accounts"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(160), nullable=False)
+    kind = db.Column(db.String(10), default="bank")     # bank | wallet | cash
+    sort = db.Column(db.Integer, default=100)
     bank = db.Column(db.String(160))
     account_no = db.Column(db.String(80))
     currency = db.Column(db.String(3), nullable=False, default="EGP")
