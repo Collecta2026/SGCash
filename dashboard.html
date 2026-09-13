@@ -5,6 +5,60 @@
 
 {% set cur = strip.current %}
 
+{% if can('banks_view') %}
+{# ---- latest recorded bank & cash balances ---- #}
+<div class="card balances">
+  <h2>{{ t('latest_balances') }}</h2>
+  <table class="tight">
+    <thead>
+      <tr>
+        <th>{{ t('account_name') }}</th>
+        <th>{{ t('account_type') }}</th>
+        <th>{{ t('currency') }}</th>
+        <th class="num">{{ t('balance') }}</th>
+        <th class="num">{{ t('egp_equivalent') }}</th>
+        <th>{{ t('as_at') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for b in banks.rows %}
+      <tr class="{{ '' if b.included else 'past' }}">
+        <td>{{ b.account.name }}{% if not b.included %}
+          <span class="badge b-cancelled">{{ t('excluded_from_forecast') }}</span>{% endif %}</td>
+        <td>{{ t('acct_' ~ b.kind) }}</td>
+        <td>{{ b.currency }}</td>
+        <td class="num {{ b.balance | neg }}">{{ b.balance | money0 }}</td>
+        <td class="num {{ b.eqv | neg }}">{{ b.eqv | money0 }}</td>
+        <td>{{ b.as_at | d if b.as_at else '—' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="muted">{{ t('no_rows') }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="subtotal">
+        <td>{{ t('total_balances') }} — EGP</td><td></td><td>EGP</td>
+        <td class="num {{ banks.totals.EGP | neg }}">{{ banks.totals.EGP | money0 }}</td>
+        <td class="num {{ banks.totals.EGP | neg }}">{{ banks.totals.EGP | money0 }}</td>
+        <td></td>
+      </tr>
+      <tr class="subtotal">
+        <td>{{ t('total_balances') }} — USD</td><td></td><td>USD</td>
+        <td class="num {{ banks.totals.USD | neg }}">{{ banks.totals.USD | money0 }}</td>
+        <td class="num {{ (banks.totals.USD * banks.fx) | neg }}">{{ (banks.totals.USD * banks.fx) | money0 }}</td>
+        <td></td>
+      </tr>
+      <tr class="total">
+        <td>{{ t('total_balances') }} ({{ t('egp_equivalent') }})</td><td></td><td></td><td></td>
+        <td class="num {{ banks.eqv | neg }}">{{ banks.eqv | money0 }}</td>
+        <td>{% if banks.oldest_as_at %}{{ banks.oldest_as_at | d }}{% endif %}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <p class="muted small">{{ t('balances_note') }} {{ t('fx_rate') }} {{ banks.fx | money }}</p>
+</div>
+{% endif %}
+
 {# ---- available cash: green, amber or red ---- #}
 <div class="health {{ health.state }}">
   <div class="figure">
@@ -104,7 +158,7 @@
   <div class="kpi {{ 'bad' if dash.lowest.EGP.amount < 0 or dash.lowest.USD.amount < 0 }}">
     <div class="lbl">{{ t('lowest_balance') }}</div>
     <div class="val {{ dash.lowest.EGP.amount | neg }}">{{ dash.lowest.EGP.amount | money0 }} <span class="small">EGP</span></div>
-    <div class="note">{{ dash.lowest.EGP.week.short if dash.lowest.EGP.week }} ·
+    <div class="note"><bdi>{{ dash.lowest.EGP.week.short if dash.lowest.EGP.week }}</bdi> ·
       USD <span class="{{ dash.lowest.USD.amount | neg }}">{{ dash.lowest.USD.amount | money0 }}</span></div>
   </div>
   {% if can_approve_any and pending %}
@@ -195,22 +249,4 @@
   </p>
 </div>
 
-{% if can('banks_view') %}
-<div class="card">
-  <h2>{{ t('banks') }}</h2>
-  <table class="tight">
-    <thead><tr><th>{{ t('account_name') }}</th><th>{{ t('currency') }}</th><th class="num">{{ t('balance') }}</th></tr></thead>
-    <tbody>
-    {% for b in dash.banks %}
-      <tr class="{{ '' if b.include_in_forecast else 'past' }}">
-        <td>{{ b.name }}{% if not b.include_in_forecast %} <span class="badge b-cancelled">excl.</span>{% endif %}</td>
-        <td>{{ b.currency }}</td><td class="num {{ b.balance | neg }}">{{ b.balance | money0 }}</td>
-      </tr>
-    {% else %}<tr><td colspan="3" class="muted">{{ t('no_rows') }}</td></tr>{% endfor %}
-    </tbody>
-    <tfoot><tr class="total"><td>{{ t('egp_equivalent') }}</td><td></td>
-      <td class="num {{ dash.opening_eqv | neg }}">{{ dash.opening_eqv | money0 }}</td></tr></tfoot>
-  </table>
-</div>
-{% endif %}
 {% endblock %}

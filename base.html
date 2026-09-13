@@ -44,7 +44,7 @@
 
   {% if my_streams %}
   <div class="dd">
-    <span>{{ t('tables') }} ▾</span>
+    <span tabindex="0">{{ t('tables') }} ▾</span>
     <div class="dd-menu">
       {% set ins = INFLOW_STREAMS | select('in', my_streams) | list %}
       {% set outs = OUTFLOW_STREAMS | select('in', my_streams) | reject('eq', 'one_off') | list %}
@@ -62,7 +62,7 @@
   {% set my_reports = REPORTS | selectattr('3', 'in', my_caps) | list %}
   {% if my_reports %}
   <div class="dd">
-    <span class="{{ 'on' if active == 'reports' }}">{{ t('reports') }} ▾</span>
+    <span tabindex="0" class="{{ 'on' if active == 'reports' }}">{{ t('reports') }} ▾</span>
     <div class="dd-menu">
       {% for r in my_reports %}
         {% if r[0] == 'completeness' %}<div class="sep"></div>{% endif %}

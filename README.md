@@ -72,7 +72,7 @@ Saturday is worked.
 
 ## Accuracy
 
-The engine is covered by 125 tests in `tests/`, each asserting figures computed
+The engine is covered by 163 tests in `tests/`, each asserting figures computed
 independently of the code under test:
 
 ```bash
@@ -159,4 +159,15 @@ longer reorders "13 Sep 2026" into "Sep 2026 13".
 **Deployment** — Render / AWS Pro runbook and deployment files are in the
 repository (`DEPLOY.md`, `render.yaml`, `Procfile`, `gunicorn.conf.py`).
 
-The suite now stands at 125 tests.
+**Acceptance tests** — `tests/test_acceptance.py` holds one test per
+requirement asked for, named after it: the ten tables, the two currencies, the
+Arabic direction, the Sunday-to-Thursday week, the seven roles, the entry-only
+seats, the sticky menu, the readable drop-downs, the removed Analysis and
+Approvals pages, the reports and their graphs, the upload templates, the
+traffic light at 15% headroom, the named banks and the balances table at the top
+of the dashboard. If any of it is ever dropped, the test that names it fails.
+
+The suite now stands at 163 tests.
+
+**Version** — `/healthz` and the page footer report the release, so you can
+always tell which build is actually live. See `UPDATE_RENDER.md`.

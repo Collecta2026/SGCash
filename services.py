@@ -25,7 +25,7 @@ from models import (db, D, BankAccount, OpeningOverride, RevenueType, CostCatego
                     CURRENCIES, COMMITTED_STATUSES, PENDING_STATUSES, AuditLog)
 from streams import STREAMS, STREAM_ORDER
 
-VERSION = "1.0"
+VERSION = "3.0"          # shown in the footer and at /healthz — check it to see which release is live
 DEFAULT_PRODUCT = "Scientific Gate Cash Flow"
 DEFAULT_ORG = "Scientific Gate Co."
 

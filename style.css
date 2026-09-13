@@ -82,7 +82,7 @@ nav.main a, nav.main .dd > span {
     letter-spacing: .2px; display: inline-block; cursor: pointer;
     border-bottom: 3px solid transparent;
 }
-nav.main a:hover, nav.main .dd:hover > span {
+nav.main a:hover, nav.main .dd:hover > span, nav.main .dd:focus-within > span {
     background: rgba(255, 255, 255, .18); text-decoration: none; color: #fff;
 }
 nav.main a.on {
@@ -97,12 +97,21 @@ nav.main a.on {
     border: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius);
     z-index: 70; padding: 6px 0;
 }
-.dd:hover .dd-menu { display: block; }
-.dd-menu a {
-    display: block; color: var(--ink); padding: 9px 15px;
-    font-size: 13.5px; font-weight: 500;
+.dd:hover .dd-menu, .dd:focus-within .dd-menu { display: block; }
+/* These selectors carry `nav.main` deliberately: without it the white
+   `nav.main a` rule wins on specificity and the dropdown entries come out
+   white on a white panel — invisible. */
+nav.main .dd-menu a, .dd-menu a {
+    display: block; color: var(--ink); padding: 8px 15px;
+    font-size: 13.5px; font-weight: 500; letter-spacing: 0;
+    border-bottom: none; background: transparent;
 }
-.dd-menu a:hover { background: var(--brand-wash); text-decoration: none; color: var(--brand-deep); }
+nav.main .dd-menu a:hover, .dd-menu a:hover {
+    background: var(--brand-wash); text-decoration: none; color: var(--brand-deep);
+}
+nav.main .dd-menu a.on, .dd-menu a.on {
+    background: var(--brand-wash); color: var(--brand-deep); font-weight: 700;
+}
 .dd-menu .hdr {
     font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px;
     color: var(--muted); padding: 9px 15px 3px; font-weight: 600;
@@ -211,7 +220,12 @@ th.grp.eqv { background: var(--charcoal); }
 td.num, th.num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
 tbody tr:hover { background: #f7fafc; }
 tr.total td { font-weight: 700; background: #eaeff4; border-top: 2px solid var(--brand-deep); }
+tr.subtotal td { font-weight: 600; background: #f2f6f9; border-top: 1px solid var(--line); }
 tr.now td { background: var(--brand-wash); box-shadow: inset 0 0 0 1px #cfe4f2; }
+
+/* Balances table leads the dashboard. */
+.card.balances { border-color: #cfe4f2; }
+.card.balances h2 { margin-top: 0; }
 tr.past td { color: var(--muted); background: #fafbfc; }
 .scroll { overflow-x: auto; }
 .tight td, .tight th { padding: 5px 8px; }
@@ -222,7 +236,7 @@ td.sep, th.sep { border-inline-start: 2px solid var(--line); }
 .pos { color: var(--in); }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
-.nowrap { white-space: nowrap; }
+.nowrap { white-space: nowrap; unicode-bidi: isolate; }
 .right { text-align: end; }
 .center { text-align: center; }
 .b { font-weight: 700; }
